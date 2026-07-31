@@ -12,11 +12,11 @@ import { createClient } from "@/lib/supabase/server";
 /**
  * Sipariş yazma işlemleri.
  *
- * `client_key` burada sunucuda üretiliyor çünkü bu istekler şimdilik ONLİNE
- * yapılıyor (offline kuyruk ayrı bir iş — bkz. proje panosu). Offline kuyruk
- * geldiğinde `client_key`'i tarayıcı üretecek ve aynı idempotency kısıtı
- * (bkz. migration 0008) çift gönderimi orada da engelleyecek; bu fonksiyonların
- * imzası değişmeyecek.
+ * `addOrderLine` ve `sendToKitchen`, hem normal (çevrimiçi form) çağrısında
+ * hem de `src/lib/offline` kuyruğu tarafından yeniden denemede kullanılıyor.
+ * `client_key`, çift gönderime karşı tek koruma: kuyruk tarafı üretip
+ * gönderiyorsa onu, yoksa sunucu kendisi üretiyor. Bkz. migration 0008'deki
+ * `(order_id, client_key)` unique kısıtı.
  */
 
 export type ActionState = { error?: string; ok?: boolean };
@@ -82,6 +82,12 @@ const addLineSchema = z.object({
   menuItemId: z.uuid(),
   quantity: z.coerce.number().positive().max(999),
   note: z.string().trim().max(200).optional(),
+  // Offline kuyruğu bu anahtarı kendisi üretip gönderir; sağlanmazsa (normal
+  // çevrimiçi form gönderimi) sunucu üretir. Anahtarı istemcinin üretmesinin
+  // sebebi: bağlantı kesilip yeniden denendiğinde AYNI mutasyonun iki kez
+  // kayıt açmaması. Sunucu her denemede yeni anahtar üretseydi, kaç kez
+  // denendiği kadar satır oluşurdu.
+  clientKey: z.uuid().optional(),
 });
 
 export async function addOrderLine(
@@ -94,6 +100,7 @@ export async function addOrderLine(
       menuItemId: formData.get("menuItemId"),
       quantity: formData.get("quantity") || 1,
       note: formData.get("note") || undefined,
+      clientKey: formData.get("clientKey") || undefined,
     });
 
     const user = await requireAppUser();
@@ -147,10 +154,20 @@ export async function addOrderLine(
       recipe_version_id: recipeVersionId,
       note: input.note,
       created_by: user.userId,
-      client_key: randomUUID(),
+      client_key: input.clientKey ?? randomUUID(),
     });
 
-    if (error) return { error: error.message };
+    if (error) {
+      // 23505 = unique_violation → (order_id, client_key) çifti zaten var.
+      // Offline kuyruğun aynı mutasyonu ikinci kez denediği anlamına gelir;
+      // bu bir hata değil, "zaten yapıldı" demektir. Hata döndürseydik kuyruk
+      // sonsuza dek bu mutasyonu denemeye devam ederdi.
+      if (error.code === "23505") {
+        revalidatePath("/pos", "layout");
+        return { ok: true };
+      }
+      return { error: error.message };
+    }
   } catch (error) {
     return fail(error);
   }

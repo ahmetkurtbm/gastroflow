@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { requireAppUser } from "@/lib/auth/current-user";
@@ -7,8 +6,7 @@ import { openTable } from "@/lib/orders/actions";
 import { loadOpenOrderForTable, loadSellableMenu } from "@/lib/orders/queries";
 import { createClient } from "@/lib/supabase/server";
 
-import { AddItemButton } from "./add-item-button";
-import { Cart } from "./cart";
+import { OrderScreen } from "./order-screen";
 
 export const metadata: Metadata = { title: "Sipariş" };
 
@@ -18,7 +16,7 @@ export default async function TableOrderPage({
   params: Promise<{ tableId: string }>;
 }) {
   const { tableId } = await params;
-  await requireAppUser();
+  const user = await requireAppUser();
 
   const supabase = await createClient();
   const { data: table } = await supabase
@@ -54,43 +52,11 @@ export default async function TableOrderPage({
   const categories = await loadSellableMenu(table.branch_id);
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] flex-col md:flex-row md:gap-4">
-      <div className="flex-1 overflow-y-auto md:pr-2">
-        <Link href="/pos" className="text-sm text-ink-muted hover:text-ink">
-          ← Salon
-        </Link>
-
-        {categories.length === 0 ? (
-          <p className="mt-6 rounded-xl border border-line bg-surface-raised px-4 py-8 text-center text-sm text-ink-muted">
-            Satılabilir ürün yok. Reçeteler → menü ürününe fiyat tanımla.
-          </p>
-        ) : (
-          <div className="mt-4 space-y-6">
-            {categories.map((category) => (
-              <section key={category.id}>
-                <h2 className="mb-2 text-sm font-semibold text-ink-muted">
-                  {category.name}
-                </h2>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {category.items.map((item) => (
-                    <AddItemButton
-                      key={item.id}
-                      orderId={order.id}
-                      itemId={item.id}
-                      name={item.name}
-                      price={item.price ?? 0}
-                    />
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <aside className="mt-4 shrink-0 rounded-xl border border-line bg-surface-raised md:mt-0 md:w-80">
-        <Cart order={order} />
-      </aside>
-    </div>
+    <OrderScreen
+      order={order}
+      categories={categories}
+      tenantId={user.tenantId}
+      userId={user.userId}
+    />
   );
 }

@@ -50,6 +50,29 @@ Bunlar tercih değil, projenin güvenlik iddiasının dayandığı kurallar.
     `grant ... to authenticated` yazılmalı. Unutulursa uygulama gürültülü şekilde
     "permission denied" verir — sessiz sızıntıdan iyidir.
 
+## Offline kuyruk — kapsam sınırı
+
+`src/lib/offline/` yalnızca **zaten açık olan bir sipariş ekranında** bağlantı
+kesintisine dayanıklılık sağlar: ürün ekleme ve mutfağa gönderme, bağlantı
+kesikken IndexedDB'de kuyruğa alınır, `client_key` idempotency'siyle senkronlanır.
+
+**Kapsam DIŞI:** Yeni bir masa açmak (`openTable`) veya herhangi bir yeni sayfaya
+gitmek offline çalışmaz. Sebep mimari: bu bir Server Component uygulaması,
+her navigasyon sunucudan RSC verisi çekmeyi gerektirir; service worker
+(app-shell önbellekleme) olmadan hiçbir navigasyon offline çalışamaz. Tam
+"soğuk başlangıç" offline desteği ayrı ve daha büyük bir iş.
+
+## Test ortamı notu — tarayıcı sekmesi "yapışkanlığı"
+
+Bu oturumda birkaç kez bir sunucu aksiyonu formu (`<form action={fn}>`)
+tıklamaya rağmen HİÇBİR ağ isteği üretmedi — ne HMR yeniden derlemesiyle,
+ne dev sunucusunu yeniden başlatmakla düzeldi. Çözüm: **yeni bir tarayıcı
+sekmesi açmak.** Kök sebep netleşmedi (muhtemelen çok sayıda navigasyon ve
+canlı düzenleme geçirmiş uzun ömürlü bir sekmenin durumu bozulmuş olması),
+ama belirti tekrarlanabilirdi: aynı sayfa, aynı buton, farklı sekmede sorunsuz
+çalıştı. Bir form gönderimi "hiçbir şey olmuyor" gibi görünüp konsolda hata
+yoksa ve ağ isteği hiç oluşmuyorsa, kod hatası aramadan önce yeni sekmede dene.
+
 ## Üretim öncesi temizlik listesi
 
 Geliştirme sırasında bilerek bırakılan, gerçek müşteriye açılmadan önce

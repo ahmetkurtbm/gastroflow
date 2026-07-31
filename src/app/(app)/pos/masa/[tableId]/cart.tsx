@@ -2,8 +2,9 @@
 
 import { useTransition } from "react";
 
-import { removeOrderLine, sendToKitchen } from "@/lib/orders/actions";
-import type { OrderView } from "@/lib/orders/queries";
+import type { OptimisticLine } from "@/lib/offline/use-offline-order";
+import { removeOrderLine } from "@/lib/orders/actions";
+import type { OrderLineView, OrderView } from "@/lib/orders/queries";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Gönderilmedi",
@@ -27,9 +28,25 @@ function formatLira(value: number): string {
   );
 }
 
-export function Cart({ order }: { order: OrderView }) {
+export function Cart({
+  order,
+  optimisticLines,
+  isOnline,
+  queueCount,
+  onSendToKitchen,
+  onCancelOptimistic,
+}: {
+  order: OrderView;
+  optimisticLines: OptimisticLine[];
+  isOnline: boolean;
+  queueCount: number;
+  onSendToKitchen: () => void;
+  onCancelOptimistic: (id: string) => void;
+}) {
   const [pending, startTransition] = useTransition();
   const pendingCount = order.lines.filter((l) => l.status === "pending").length;
+  const total =
+    order.total + optimisticLines.reduce((sum, l) => sum + l.quantity * l.unitPrice, 0);
 
   return (
     <div className="flex h-full flex-col">
@@ -40,14 +57,54 @@ export function Cart({ order }: { order: OrderView }) {
         </h2>
       </div>
 
+      {!isOnline || queueCount > 0 ? (
+        <div
+          role="status"
+          className={`px-4 py-2 text-xs font-medium ${
+            isOnline
+              ? "bg-warn/10 text-warn"
+              : "bg-danger/10 text-danger"
+          }`}
+        >
+          {isOnline
+            ? `Senkronize ediliyor… (${queueCount})`
+            : `Çevrimdışı — ${queueCount} işlem bağlantı gelince gönderilecek`}
+        </div>
+      ) : null}
+
       <div className="flex-1 overflow-y-auto">
-        {order.lines.length === 0 ? (
+        {order.lines.length === 0 && optimisticLines.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-ink-muted">
             Sepet boş. Soldan ürün seç.
           </p>
         ) : (
           <ul className="divide-y divide-line">
-            {order.lines.map((line) => (
+            {optimisticLines.map((line) => (
+              <li key={line.id} className="flex items-start justify-between gap-2 px-4 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-sm text-ink">
+                    <span className="font-medium tabular-nums">{line.quantity}×</span>{" "}
+                    {line.menuItemName}
+                  </p>
+                  <p className="text-xs text-warn">Gönderiliyor…</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="text-sm tabular-nums text-ink-muted">
+                    {formatLira(line.quantity * line.unitPrice)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onCancelOptimistic(line.id)}
+                    aria-label={`${line.menuItemName} satırını iptal et`}
+                    className="rounded p-1 text-ink-muted hover:bg-danger/10 hover:text-danger"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </li>
+            ))}
+
+            {order.lines.map((line: OrderLineView) => (
               <li key={line.id} className="flex items-start justify-between gap-2 px-4 py-2.5">
                 <div className="min-w-0">
                   <p className="text-sm text-ink">
@@ -71,8 +128,9 @@ export function Cart({ order }: { order: OrderView }) {
                       <input type="hidden" name="id" value={line.id} />
                       <button
                         type="submit"
+                        disabled={!isOnline}
                         aria-label={`${line.menuItemName} satırını kaldır`}
-                        className="rounded p-1 text-ink-muted hover:bg-danger/10 hover:text-danger"
+                        className="rounded p-1 text-ink-muted hover:bg-danger/10 hover:text-danger disabled:opacity-30"
                       >
                         ✕
                       </button>
@@ -89,22 +147,20 @@ export function Cart({ order }: { order: OrderView }) {
         <div className="mb-3 flex items-center justify-between">
           <span className="text-sm text-ink-muted">Toplam</span>
           <span className="text-lg font-bold tabular-nums text-ink">
-            {formatLira(order.total)}
+            {formatLira(total)}
           </span>
         </div>
 
-        <form action={(fd) => startTransition(() => sendToKitchen(fd))}>
-          <input type="hidden" name="orderId" value={order.id} />
-          <button
-            type="submit"
-            disabled={pendingCount === 0 || pending}
-            className="w-full rounded-lg bg-brand-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {pendingCount > 0
-              ? `Mutfağa gönder (${pendingCount})`
-              : "Gönderilecek ürün yok"}
-          </button>
-        </form>
+        <button
+          type="button"
+          onClick={onSendToKitchen}
+          disabled={(pendingCount === 0 && optimisticLines.length === 0) || pending}
+          className="w-full rounded-lg bg-brand-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {pendingCount + optimisticLines.length > 0
+            ? `Mutfağa gönder (${pendingCount + optimisticLines.length})`
+            : "Gönderilecek ürün yok"}
+        </button>
       </div>
     </div>
   );
