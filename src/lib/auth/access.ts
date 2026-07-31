@@ -48,7 +48,7 @@ const PATH_ACCESS: Record<string, readonly AppRole[]> = {
   "/orders": ["waiter", "cashier", "chef", "manager", "owner"],
   "/kds": ["chef", "manager", "owner"],
   "/cash": ["cashier", "manager", "owner"],
-  "/inventory": ["storekeeper", "chef", "manager", "owner"],
+  "/inventory": ["storekeeper", "chef", "manager", "owner", "accountant"],
   "/recipes": ["chef", "manager", "owner", "accountant"],
   "/purchasing": ["storekeeper", "manager", "owner", "accountant"],
   "/reports": ["manager", "owner", "accountant"],

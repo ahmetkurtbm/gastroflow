@@ -7,6 +7,8 @@ import {
 } from "@/core/recipe";
 import type { UnitConversion } from "@/core/units";
 import { createClient } from "@/lib/supabase/server";
+import type { Database } from "@/lib/supabase/database.types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * Veritabanı ile saf maliyet motoru (`src/core`) arasındaki köprü.
@@ -61,9 +63,17 @@ export async function loadCatalog(
      * çok daha faydalı.
      */
     preferDraftFor?: string;
+    /**
+     * Alternatif Supabase istemcisi. Varsayılan, çağıran kullanıcının oturumunu
+     * (ve RLS'ini) kullanır. `createServiceRoleClient()` geçirmek gerekiyorsa
+     * sebebi şu olmalı: çağıran, `can_read_costs()` yetkisi olmayan bir rol
+     * (ör. kasiyer) adına ÇALIŞAN bir sistem sürecidir — bkz.
+     * src/lib/inventory/depletion.ts.
+     */
+    client?: SupabaseClient<Database>;
   } = {},
 ): Promise<CatalogSnapshot> {
-  const supabase = await createClient();
+  const supabase = options.client ?? (await createClient());
 
   const [itemsResult, conversionsResult, recipesResult, versionsResult, pricesResult] =
     await Promise.all([

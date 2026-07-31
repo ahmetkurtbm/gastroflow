@@ -633,6 +633,135 @@ export type Database = {
           },
         ];
       };
+      stock_locations: {
+        Row: {
+          branch_id: string;
+          created_at: string;
+          id: string;
+          is_active: boolean;
+          kind: Database["public"]["Enums"]["stock_location_kind"];
+          name: string;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          branch_id: string;
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          kind?: Database["public"]["Enums"]["stock_location_kind"];
+          name: string;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          branch_id?: string;
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          kind?: Database["public"]["Enums"]["stock_location_kind"];
+          name?: string;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      stock_movements: {
+        Row: {
+          branch_id: string;
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          inventory_item_id: string;
+          location_id: string;
+          movement_type: Database["public"]["Enums"]["stock_movement_type"];
+          note: string | null;
+          quantity: string;
+          reference_id: string | null;
+          reference_type: string | null;
+          tenant_id: string;
+        };
+        Insert: {
+          branch_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          inventory_item_id: string;
+          location_id: string;
+          movement_type: Database["public"]["Enums"]["stock_movement_type"];
+          note?: string | null;
+          quantity: string | number;
+          reference_id?: string | null;
+          reference_type?: string | null;
+          tenant_id: string;
+        };
+        Update: {
+          branch_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          inventory_item_id?: string;
+          location_id?: string;
+          movement_type?: Database["public"]["Enums"]["stock_movement_type"];
+          note?: string | null;
+          quantity?: string | number;
+          reference_id?: string | null;
+          reference_type?: string | null;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "stock_movements_inventory_item_id_fkey";
+            columns: ["inventory_item_id"];
+            isOneToOne: false;
+            referencedRelation: "inventory_items";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "stock_movements_location_id_fkey";
+            columns: ["location_id"];
+            isOneToOne: false;
+            referencedRelation: "stock_locations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      par_levels: {
+        Row: {
+          created_at: string;
+          id: string;
+          inventory_item_id: string;
+          location_id: string;
+          max_quantity: string | null;
+          min_quantity: string | null;
+          reorder_point: string;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          inventory_item_id: string;
+          location_id: string;
+          max_quantity?: string | number | null;
+          min_quantity?: string | number | null;
+          reorder_point?: string | number;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          inventory_item_id?: string;
+          location_id?: string;
+          max_quantity?: string | number | null;
+          min_quantity?: string | number | null;
+          reorder_point?: string | number;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       branches: {
         Row: {
           created_at: string;
@@ -774,7 +903,31 @@ export type Database = {
         Relationships: [];
       };
     };
-    Views: Record<never, never>;
+    Views: {
+      v_stock_balance: {
+        Row: {
+          balance: string;
+          branch_id: string;
+          inventory_item_id: string;
+          location_id: string;
+          tenant_id: string;
+        };
+        Relationships: [];
+      };
+      v_low_stock: {
+        Row: {
+          balance: string;
+          base_unit: string;
+          inventory_item_id: string;
+          item_name: string;
+          location_id: string;
+          location_name: string;
+          reorder_point: string;
+          tenant_id: string;
+        };
+        Relationships: [];
+      };
+    };
     Functions: {
       current_app_role: {
         Args: never;
@@ -807,6 +960,17 @@ export type Database = {
         | "served"
         | "cancelled";
       payment_method: "cash" | "card" | "meal_card" | "on_account";
+      stock_location_kind: "storage" | "kitchen" | "bar";
+      stock_movement_type:
+        | "purchase_in"
+        | "sale_out"
+        | "waste"
+        | "transfer_in"
+        | "transfer_out"
+        | "production_in"
+        | "production_out"
+        | "count_adjustment"
+        | "reversal";
     };
     CompositeTypes: Record<never, never>;
   };

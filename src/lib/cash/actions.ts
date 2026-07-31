@@ -8,6 +8,7 @@ import { z } from "zod";
 import { compare } from "@/core/money";
 import { requireAppUser } from "@/lib/auth/current-user";
 import { loadOrderForPayment } from "@/lib/cash/queries";
+import { depleteOrderStock } from "@/lib/inventory/depletion";
 import { createClient } from "@/lib/supabase/server";
 
 export type ActionState = { error?: string; ok?: boolean };
@@ -73,11 +74,33 @@ export async function recordPayment(
 
     const updated = await loadOrderForPayment(input.orderId);
     if (updated && compare(updated.paid, updated.total) >= 0) {
-      await supabase
+      const { error: closeError } = await supabase
         .from("orders")
         .update({ status: "closed", closed_at: new Date().toISOString() })
         .eq("id", input.orderId)
         .eq("status", "open");
+
+      // İki ödeme isteği yarışıp ikisi de "tam ödendi" görse ve ikisi de
+      // depletion'ı tetiklese bile sorun değil: stok_movements'taki
+      // (reference_type, reference_id, ürün) unique kısıtı ikinci denemeyi
+      // sessizce atlıyor (bkz. depleteOrderStock). Satır sayısına göre
+      // gate'lemeye gerek yok — idempotency zaten alt katmanda garantili.
+      //
+      // Hata YUTULUYOR, ödeme başarısızlığına dönüştürülmüyor: ödeme zaten
+      // kaydedildi ve adisyon zaten kapandı — kasiyerin ekranında "ödeme
+      // başarısız" görünmesi burada gerçekleşmedi. Stok düşümü bir YAN ETKİ;
+      // başarısız olursa (ör. service_role henüz yapılandırılmadıysa) gerçek
+      // bir hata olarak günlüğe düşer ama müşteriyi kasada bekletmez.
+      if (!closeError) {
+        try {
+          await depleteOrderStock(input.orderId);
+        } catch (depletionError) {
+          console.error(
+            `Stok düşümü başarısız (adisyon ${input.orderId}):`,
+            depletionError,
+          );
+        }
+      }
     }
   } catch (error) {
     return fail(error);

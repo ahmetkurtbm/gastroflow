@@ -27,6 +27,21 @@ async function put(mutation: QueuedMutation): Promise<void> {
   await withStore("readwrite", (store) => store.put(mutation));
 }
 
+/**
+ * Sıralama için tekil, kesin artan bir zaman damgası üretir.
+ *
+ * Yalnızca `Date.now()` YETMEZ: iki `enqueue*` çağrısı aynı milisaniyede
+ * tamamlanabilir (test ortamında neredeyse her zaman olur), bu durumda
+ * IndexedDB indeksindeki sıra garanti edilmez ve "mutfağa gönder" isteği,
+ * ondan önce eklenmesi gereken ürün satırından önce işlenebilir — bu tam
+ * olarak `drainQueue`'nun engellemeye çalıştığı hata. Aynı milisaniye
+ * içindeki art arda çağrılar için sayaç, gerçek sırayı korur.
+ */
+let sequence = 0;
+function nextTimestamp(): number {
+  return Date.now() * 1000 + (sequence++ % 1000);
+}
+
 export async function enqueueAddLine(input: {
   tenantId: string;
   orderId: string;
@@ -39,7 +54,7 @@ export async function enqueueAddLine(input: {
   const mutation: QueuedMutation = {
     id: crypto.randomUUID(),
     kind: "add_line",
-    createdAt: Date.now(),
+    createdAt: nextTimestamp(),
     tenantId: input.tenantId,
     orderId: input.orderId,
     menuItemId: input.menuItemId,
@@ -59,7 +74,7 @@ export async function enqueueSendToKitchen(input: {
   const mutation: QueuedMutation = {
     id: crypto.randomUUID(),
     kind: "send_to_kitchen",
-    createdAt: Date.now(),
+    createdAt: nextTimestamp(),
     tenantId: input.tenantId,
     orderId: input.orderId,
   };
