@@ -57,6 +57,9 @@ function TicketCard({ ticket }: { ticket: KitchenTicket }) {
           <p className="mt-0.5 text-sm font-semibold text-ink">
             {ticket.quantity}× {ticket.menuItemName}
           </p>
+          {ticket.modifierSummary ? (
+            <p className="mt-0.5 text-xs font-medium text-brand-700">{ticket.modifierSummary}</p>
+          ) : null}
           {ticket.note ? (
             <p className="mt-0.5 text-xs text-ink-muted">{ticket.note}</p>
           ) : null}
@@ -101,7 +104,7 @@ export function KdsBoard({
       const { data } = await supabase
         .from("order_lines")
         .select(
-          "id, quantity, note, status, sent_at, menu_items(name), orders(order_no, tables(name))",
+          "id, quantity, note, status, sent_at, menu_items(name), orders(order_no, tables(name)), order_line_modifiers(name)",
         )
         .in("status", ["sent", "preparing", "ready"])
         .order("sent_at", { ascending: true });
@@ -111,6 +114,10 @@ export function KdsBoard({
           id: line.id,
           menuItemName: line.menu_items?.name ?? "Bilinmeyen ürün",
           quantity: Number(line.quantity),
+          modifierSummary:
+            (line.order_line_modifiers ?? []).length > 0
+              ? line.order_line_modifiers.map((m) => m.name).join(", ")
+              : null,
           note: line.note,
           status: line.status as KitchenTicket["status"],
           tableName: line.orders?.tables?.name ?? null,

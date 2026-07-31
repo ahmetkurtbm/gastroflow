@@ -88,6 +88,11 @@ const addLineSchema = z.object({
   // kayıt açmaması. Sunucu her denemede yeni anahtar üretseydi, kaç kez
   // denendiği kadar satır oluşurdu.
   clientKey: z.uuid().optional(),
+  // Yalnızca KİMLİKLERİ alıyoruz — ad ve fiyat farkı istemciden gelmiyor.
+  // Aksi hâlde biri formu manipüle edip "büyük boy" seçip fiyat farkını
+  // 0 olarak gönderebilirdi. Gerçek ad/fiyat aşağıda veritabanından okunup
+  // dondurulur (menü fiyatıyla aynı prensip).
+  modifierIds: z.array(z.uuid()).optional(),
 });
 
 export async function addOrderLine(
@@ -101,6 +106,9 @@ export async function addOrderLine(
       quantity: formData.get("quantity") || 1,
       note: formData.get("note") || undefined,
       clientKey: formData.get("clientKey") || undefined,
+      modifierIds: formData.getAll("modifierIds").length > 0
+        ? formData.getAll("modifierIds")
+        : undefined,
     });
 
     const user = await requireAppUser();
@@ -144,18 +152,40 @@ export async function addOrderLine(
     const recipeVersionId =
       recipe?.recipe_versions?.find((v) => v.status === "active")?.id ?? null;
 
-    const { error } = await supabase.from("order_lines").insert({
-      tenant_id: user.tenantId,
-      order_id: input.orderId,
-      menu_item_id: input.menuItemId,
-      quantity: input.quantity,
-      unit_price: price.price,
-      vat_rate: price.vat_rate,
-      recipe_version_id: recipeVersionId,
-      note: input.note,
-      created_by: user.userId,
-      client_key: input.clientKey ?? randomUUID(),
-    });
+    // Modifier ad/fiyatını burada, veritabanından okuyup dondurüyoruz —
+    // istemciden gelen değere güvenmiyoruz.
+    let modifiers: { name: string; price_delta: string }[] = [];
+    if (input.modifierIds && input.modifierIds.length > 0) {
+      const { data: modifierRows } = await supabase
+        .from("modifiers")
+        .select("id, name, price_delta")
+        .in("id", input.modifierIds)
+        .eq("is_active", true);
+
+      if (!modifierRows || modifierRows.length !== input.modifierIds.length) {
+        return { error: "Seçilen seçeneklerden biri artık geçerli değil." };
+      }
+      modifiers = modifierRows.map((m) => ({ name: m.name, price_delta: m.price_delta }));
+    }
+
+    const lineClientKey = input.clientKey ?? randomUUID();
+
+    const { data: insertedLine, error } = await supabase
+      .from("order_lines")
+      .insert({
+        tenant_id: user.tenantId,
+        order_id: input.orderId,
+        menu_item_id: input.menuItemId,
+        quantity: input.quantity,
+        unit_price: price.price,
+        vat_rate: price.vat_rate,
+        recipe_version_id: recipeVersionId,
+        note: input.note,
+        created_by: user.userId,
+        client_key: lineClientKey,
+      })
+      .select("id")
+      .maybeSingle();
 
     if (error) {
       // 23505 = unique_violation → (order_id, client_key) çifti zaten var.
@@ -167,6 +197,22 @@ export async function addOrderLine(
         return { ok: true };
       }
       return { error: error.message };
+    }
+
+    if (modifiers.length > 0 && insertedLine) {
+      const { error: modifierError } = await supabase.from("order_line_modifiers").insert(
+        modifiers.map((m) => ({
+          tenant_id: user.tenantId,
+          order_line_id: insertedLine.id,
+          name: m.name,
+          price_delta: m.price_delta,
+        })),
+      );
+      // Ana satır zaten eklendi; modifier eklenemezse akışı durdurmuyoruz
+      // ama günlüğe düşüyoruz — sessizce yutulursa fiyat farkı kaybolurdu.
+      if (modifierError) {
+        console.error(`Modifier eklenemedi (satır ${insertedLine.id}):`, modifierError);
+      }
     }
   } catch (error) {
     return fail(error);

@@ -17,6 +17,7 @@ export type OptimisticLine = {
   menuItemName: string;
   quantity: number;
   unitPrice: number;
+  modifierSummary: string | null;
 };
 
 /**
@@ -51,6 +52,7 @@ export function useOfflineOrder(orderId: string) {
           menuItemName: m.menuItemName,
           quantity: m.quantity,
           unitPrice: m.unitPrice,
+          modifierSummary: m.modifierSummary,
         })),
     );
   }, [orderId]);
@@ -113,6 +115,8 @@ export function useOfflineOrder(orderId: string) {
       menuItemId: string;
       menuItemName: string;
       unitPrice: number;
+      modifierIds?: readonly string[];
+      modifierSummary?: string | null;
     }) => {
       await enqueueAddLine({
         tenantId: input.tenantId,
@@ -121,6 +125,8 @@ export function useOfflineOrder(orderId: string) {
         menuItemName: input.menuItemName,
         quantity: 1,
         unitPrice: input.unitPrice,
+        modifierIds: input.modifierIds,
+        modifierSummary: input.modifierSummary,
         userId: input.userId,
       });
       await refreshQueueView();

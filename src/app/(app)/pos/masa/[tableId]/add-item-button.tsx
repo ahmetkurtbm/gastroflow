@@ -11,10 +11,14 @@
 export function AddItemButton({
   name,
   price,
+  hasOptions = false,
   onAdd,
 }: {
   name: string;
   price: number;
+  /** Seçenek grubu varsa küçük bir gösterge ekler — dokununca sepete
+   * eklemeden önce seçim paneli açılacağını garsona önceden bildirir. */
+  hasOptions?: boolean;
   onAdd: () => void;
 }) {
   return (
@@ -23,7 +27,10 @@ export function AddItemButton({
       onClick={onAdd}
       className="flex h-full w-full flex-col items-start gap-1 rounded-xl border border-line bg-surface-raised p-3 text-left transition-colors hover:border-brand-400 active:bg-brand-50"
     >
-      <span className="text-sm font-medium text-ink">{name}</span>
+      <span className="text-sm font-medium text-ink">
+        {name}
+        {hasOptions ? <span className="ml-1 text-ink-muted">···</span> : null}
+      </span>
       <span className="text-xs tabular-nums text-ink-muted">
         {price.toLocaleString("tr-TR", {
           minimumFractionDigits: 2,

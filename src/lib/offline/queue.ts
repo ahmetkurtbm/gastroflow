@@ -49,6 +49,8 @@ export async function enqueueAddLine(input: {
   menuItemName: string;
   quantity: number;
   unitPrice: number;
+  modifierIds?: readonly string[];
+  modifierSummary?: string | null;
   userId: string;
 }): Promise<QueuedMutation> {
   const mutation: QueuedMutation = {
@@ -61,6 +63,8 @@ export async function enqueueAddLine(input: {
     menuItemName: input.menuItemName,
     quantity: input.quantity,
     unitPrice: input.unitPrice,
+    modifierIds: input.modifierIds ?? [],
+    modifierSummary: input.modifierSummary ?? null,
     userId: input.userId,
   };
   await put(mutation);
@@ -139,6 +143,9 @@ async function syncOne(mutation: QueuedMutation): Promise<SyncOutcome> {
       formData.set("menuItemId", mutation.menuItemId);
       formData.set("quantity", String(mutation.quantity));
       formData.set("clientKey", mutation.id);
+      for (const modifierId of mutation.modifierIds) {
+        formData.append("modifierIds", modifierId);
+      }
 
       const result = await addOrderLine({}, formData);
       if (result.error) {

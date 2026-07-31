@@ -4,7 +4,7 @@ import { useTransition } from "react";
 
 import type { OptimisticLine } from "@/lib/offline/use-offline-order";
 import { removeOrderLine } from "@/lib/orders/actions";
-import type { OrderLineView, OrderView } from "@/lib/orders/queries";
+import { effectiveUnitPrice, type OrderLineView, type OrderView } from "@/lib/orders/types";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Gönderilmedi",
@@ -86,7 +86,9 @@ export function Cart({
                     <span className="font-medium tabular-nums">{line.quantity}×</span>{" "}
                     {line.menuItemName}
                   </p>
-                  <p className="text-xs text-warn">Gönderiliyor…</p>
+                  <p className="text-xs text-warn">
+                    Gönderiliyor…{line.modifierSummary ? ` · ${line.modifierSummary}` : ""}
+                  </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <span className="text-sm tabular-nums text-ink-muted">
@@ -113,13 +115,16 @@ export function Cart({
                   </p>
                   <p className="text-xs text-ink-muted">
                     {STATUS_LABEL[line.status] ?? line.status}
+                    {line.modifiers.length > 0
+                      ? ` · ${line.modifiers.map((m) => m.name).join(", ")}`
+                      : ""}
                     {line.note ? ` · ${line.note}` : ""}
                   </p>
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
                   <span className="text-sm tabular-nums text-ink">
-                    {formatLira(line.quantity * line.unitPrice)}
+                    {formatLira(line.quantity * effectiveUnitPrice(line))}
                   </span>
                   {line.status === "pending" ? (
                     <form

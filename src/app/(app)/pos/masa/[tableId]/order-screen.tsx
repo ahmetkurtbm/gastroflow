@@ -1,12 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 
 import { useOfflineOrder } from "@/lib/offline/use-offline-order";
-import type { MenuCategory, OrderView } from "@/lib/orders/queries";
+import type { MenuCategory, OrderView } from "@/lib/orders/types";
 
 import { AddItemButton } from "./add-item-button";
 import { Cart } from "./cart";
+import { ModifierPicker } from "./modifier-picker";
+
+type MenuItem = MenuCategory["items"][number];
 
 export function OrderScreen({
   order,
@@ -27,6 +31,24 @@ export function OrderScreen({
     sendToKitchen,
     cancelOptimistic,
   } = useOfflineOrder(order.id);
+
+  // Seçenek grubu olan bir ürüne dokununca, sepete direkt eklemeden önce bu
+  // panel açılır. Seçeneksiz ürünler eskisi gibi tek dokunuşla eklenir.
+  const [pickerItem, setPickerItem] = useState<MenuItem | null>(null);
+
+  function handleTap(item: MenuItem) {
+    if (item.modifierGroups.length > 0) {
+      setPickerItem(item);
+      return;
+    }
+    void addItem({
+      tenantId,
+      userId,
+      menuItemId: item.id,
+      menuItemName: item.name,
+      unitPrice: item.price ?? 0,
+    });
+  }
 
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col md:flex-row md:gap-4">
@@ -52,15 +74,8 @@ export function OrderScreen({
                       key={item.id}
                       name={item.name}
                       price={item.price ?? 0}
-                      onAdd={() =>
-                        void addItem({
-                          tenantId,
-                          userId,
-                          menuItemId: item.id,
-                          menuItemName: item.name,
-                          unitPrice: item.price ?? 0,
-                        })
-                      }
+                      hasOptions={item.modifierGroups.length > 0}
+                      onAdd={() => handleTap(item)}
                     />
                   ))}
                 </div>
@@ -80,6 +95,27 @@ export function OrderScreen({
           onCancelOptimistic={(id) => void cancelOptimistic(id)}
         />
       </aside>
+
+      {pickerItem ? (
+        <ModifierPicker
+          itemName={pickerItem.name}
+          basePrice={pickerItem.price ?? 0}
+          groups={pickerItem.modifierGroups}
+          onCancel={() => setPickerItem(null)}
+          onConfirm={({ ids, summary, extraPrice }) => {
+            void addItem({
+              tenantId,
+              userId,
+              menuItemId: pickerItem.id,
+              menuItemName: pickerItem.name,
+              unitPrice: (pickerItem.price ?? 0) + extraPrice,
+              modifierIds: ids,
+              modifierSummary: summary,
+            });
+            setPickerItem(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

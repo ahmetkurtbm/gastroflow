@@ -762,6 +762,132 @@ export type Database = {
         };
         Relationships: [];
       };
+      modifier_groups: {
+        Row: {
+          created_at: string;
+          id: string;
+          max_select: number;
+          menu_item_id: string;
+          min_select: number;
+          name: string;
+          sort_order: number;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          max_select?: number;
+          menu_item_id: string;
+          min_select?: number;
+          name: string;
+          sort_order?: number;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          max_select?: number;
+          menu_item_id?: string;
+          min_select?: number;
+          name?: string;
+          sort_order?: number;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "modifier_groups_menu_item_id_fkey";
+            columns: ["menu_item_id"];
+            isOneToOne: false;
+            referencedRelation: "menu_items";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      modifiers: {
+        Row: {
+          created_at: string;
+          id: string;
+          is_active: boolean;
+          modifier_group_id: string;
+          name: string;
+          price_delta: string;
+          sort_order: number;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          modifier_group_id: string;
+          name: string;
+          price_delta?: string | number;
+          sort_order?: number;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          modifier_group_id?: string;
+          name?: string;
+          price_delta?: string | number;
+          sort_order?: number;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "modifiers_modifier_group_id_fkey";
+            columns: ["modifier_group_id"];
+            isOneToOne: false;
+            referencedRelation: "modifier_groups";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      order_line_modifiers: {
+        Row: {
+          created_at: string;
+          id: string;
+          modifier_id: string | null;
+          name: string;
+          order_line_id: string;
+          price_delta: string;
+          tenant_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          modifier_id?: string | null;
+          name: string;
+          order_line_id: string;
+          price_delta: string | number;
+          tenant_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          modifier_id?: string | null;
+          name?: string;
+          order_line_id?: string;
+          price_delta?: string | number;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "order_line_modifiers_order_line_id_fkey";
+            columns: ["order_line_id"];
+            isOneToOne: false;
+            referencedRelation: "order_lines";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       branches: {
         Row: {
           created_at: string;

@@ -18,7 +18,11 @@ export type QueuedMutation =
       readonly menuItemId: string;
       readonly menuItemName: string;
       readonly quantity: number;
+      /** Ürün fiyatı + seçilen modifier'ların TOPLAM farkı — yalnızca
+       * OPTİMİSTİK gösterim için. Sunucu ad/fiyatı kendi okuyup dondurur. */
       readonly unitPrice: number;
+      readonly modifierIds: readonly string[];
+      readonly modifierSummary: string | null;
       readonly userId: string;
     }
   | {

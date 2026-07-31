@@ -62,17 +62,32 @@ export default async function PaymentPage({
           Ürünler
         </h2>
         <ul className="divide-y divide-line">
-          {order.lines.map((line, index) => (
-            <li key={index} className="flex items-center justify-between px-4 py-2.5 text-sm">
-              <span className="text-ink">
-                <span className="tabular-nums font-medium">{line.quantity}×</span>{" "}
-                {line.menuItemName}
-              </span>
-              <span className="tabular-nums text-ink-muted">
-                {formatMoney(money(line.quantity * line.unitPrice))}
-              </span>
-            </li>
-          ))}
+          {order.lines.map((line, index) => {
+            const modifierTotal = line.modifiers.reduce((s, m) => s + m.priceDelta, 0);
+            return (
+              <li key={index} className="px-4 py-2.5 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-ink">
+                    <span className="tabular-nums font-medium">{line.quantity}×</span>{" "}
+                    {line.menuItemName}
+                  </span>
+                  <span className="tabular-nums text-ink-muted">
+                    {formatMoney(money(line.quantity * (line.unitPrice + modifierTotal)))}
+                  </span>
+                </div>
+                {line.modifiers.length > 0 ? (
+                  <p className="mt-0.5 text-xs text-ink-muted">
+                    {line.modifiers
+                      .map(
+                        (m) =>
+                          `${m.name}${m.priceDelta !== 0 ? ` (${m.priceDelta > 0 ? "+" : ""}${m.priceDelta.toLocaleString("tr-TR")} ₺)` : ""}`,
+                      )
+                      .join(", ")}
+                  </p>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
         <div className="flex items-center justify-between border-t border-line px-4 py-3">
           <span className="text-sm font-semibold text-ink">Toplam</span>
