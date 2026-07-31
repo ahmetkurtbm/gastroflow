@@ -375,6 +375,264 @@ export type Database = {
           },
         ];
       };
+      areas: {
+        Row: {
+          branch_id: string;
+          created_at: string;
+          id: string;
+          is_active: boolean;
+          name: string;
+          sort_order: number;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          branch_id: string;
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          name: string;
+          sort_order?: number;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          branch_id?: string;
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          name?: string;
+          sort_order?: number;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      tables: {
+        Row: {
+          area_id: string | null;
+          branch_id: string;
+          created_at: string;
+          id: string;
+          is_active: boolean;
+          name: string;
+          seats: number;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          area_id?: string | null;
+          branch_id: string;
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          name: string;
+          seats?: number;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          area_id?: string | null;
+          branch_id?: string;
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          name?: string;
+          seats?: number;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tables_area_id_fkey";
+            columns: ["area_id"];
+            isOneToOne: false;
+            referencedRelation: "areas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      orders: {
+        Row: {
+          branch_id: string;
+          channel: Database["public"]["Enums"]["order_channel"];
+          client_key: string;
+          closed_at: string | null;
+          created_at: string;
+          guest_count: number | null;
+          id: string;
+          note: string | null;
+          opened_at: string;
+          opened_by: string | null;
+          order_no: number | null;
+          status: Database["public"]["Enums"]["order_status"];
+          table_id: string | null;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          branch_id: string;
+          channel?: Database["public"]["Enums"]["order_channel"];
+          client_key: string;
+          closed_at?: string | null;
+          created_at?: string;
+          guest_count?: number | null;
+          id?: string;
+          note?: string | null;
+          opened_at?: string;
+          opened_by?: string | null;
+          order_no?: number | null;
+          status?: Database["public"]["Enums"]["order_status"];
+          table_id?: string | null;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          branch_id?: string;
+          channel?: Database["public"]["Enums"]["order_channel"];
+          client_key?: string;
+          closed_at?: string | null;
+          created_at?: string;
+          guest_count?: number | null;
+          id?: string;
+          note?: string | null;
+          opened_at?: string;
+          opened_by?: string | null;
+          order_no?: number | null;
+          status?: Database["public"]["Enums"]["order_status"];
+          table_id?: string | null;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "orders_table_id_fkey";
+            columns: ["table_id"];
+            isOneToOne: false;
+            referencedRelation: "tables";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      order_lines: {
+        Row: {
+          client_key: string;
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          menu_item_id: string;
+          note: string | null;
+          order_id: string;
+          quantity: string;
+          ready_at: string | null;
+          recipe_version_id: string | null;
+          sent_at: string | null;
+          station: string | null;
+          status: Database["public"]["Enums"]["order_line_status"];
+          tenant_id: string;
+          unit_price: string;
+          updated_at: string;
+          vat_rate: string;
+        };
+        Insert: {
+          client_key: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          menu_item_id: string;
+          note?: string | null;
+          order_id: string;
+          quantity: string | number;
+          ready_at?: string | null;
+          recipe_version_id?: string | null;
+          sent_at?: string | null;
+          station?: string | null;
+          status?: Database["public"]["Enums"]["order_line_status"];
+          tenant_id: string;
+          unit_price: string | number;
+          updated_at?: string;
+          vat_rate?: string | number;
+        };
+        Update: {
+          client_key?: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          menu_item_id?: string;
+          note?: string | null;
+          order_id?: string;
+          quantity?: string | number;
+          ready_at?: string | null;
+          recipe_version_id?: string | null;
+          sent_at?: string | null;
+          station?: string | null;
+          status?: Database["public"]["Enums"]["order_line_status"];
+          tenant_id?: string;
+          unit_price?: string | number;
+          updated_at?: string;
+          vat_rate?: string | number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "order_lines_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "order_lines_menu_item_id_fkey";
+            columns: ["menu_item_id"];
+            isOneToOne: false;
+            referencedRelation: "menu_items";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      payments: {
+        Row: {
+          amount: string;
+          client_key: string;
+          created_at: string;
+          id: string;
+          method: Database["public"]["Enums"]["payment_method"];
+          order_id: string;
+          received_at: string;
+          received_by: string | null;
+          tenant_id: string;
+        };
+        Insert: {
+          amount: string | number;
+          client_key: string;
+          created_at?: string;
+          id?: string;
+          method: Database["public"]["Enums"]["payment_method"];
+          order_id: string;
+          received_at?: string;
+          received_by?: string | null;
+          tenant_id: string;
+        };
+        Update: {
+          amount?: string | number;
+          client_key?: string;
+          created_at?: string;
+          id?: string;
+          method?: Database["public"]["Enums"]["payment_method"];
+          order_id?: string;
+          received_at?: string;
+          received_by?: string | null;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payments_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       branches: {
         Row: {
           created_at: string;
@@ -539,6 +797,16 @@ export type Database = {
         | "accountant";
       recipe_version_status: "draft" | "active" | "archived";
       recipe_component_type: "ingredient" | "sub_recipe";
+      order_status: "open" | "closed" | "cancelled";
+      order_channel: "dine_in" | "takeaway" | "delivery";
+      order_line_status:
+        | "pending"
+        | "sent"
+        | "preparing"
+        | "ready"
+        | "served"
+        | "cancelled";
+      payment_method: "cash" | "card" | "meal_card" | "on_account";
     };
     CompositeTypes: Record<never, never>;
   };
