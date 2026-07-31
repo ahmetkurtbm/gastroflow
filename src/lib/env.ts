@@ -46,11 +46,23 @@ function readClientEnv() {
 
 export const clientEnv = readClientEnv();
 
+/**
+ * `.env.local`'de henüz doldurulmamış opsiyonel bir anahtar genelde `X=""`
+ * olarak durur — `undefined` değil, BOŞ STRING. Zod'da `.optional()` yalnızca
+ * `undefined`'ı es geçer; boş string yine şemadan geçmeye çalışır ve
+ * `min(1)` onu reddeder. Sonuç: dolu ve geçerli olan SUPABASE_SERVICE_ROLE_KEY
+ * bile, yanındaki boş RESEND_API_KEY yüzünden tüm `getServerEnv()` çağrısını
+ * patlatıyordu — depletion motorunu bu şekilde kırdı, testte yakalandı.
+ */
+function emptyToUndefined(value: string | undefined): string | undefined {
+  return value === "" ? undefined : value;
+}
+
 /** Sadece sunucu tarafında çağır. Client bileşeninden çağırmak build'i kırar. */
 export function getServerEnv() {
   const parsed = serverSchema.safeParse({
-    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    SUPABASE_SERVICE_ROLE_KEY: emptyToUndefined(process.env.SUPABASE_SERVICE_ROLE_KEY),
+    RESEND_API_KEY: emptyToUndefined(process.env.RESEND_API_KEY),
   });
 
   if (!parsed.success) {
