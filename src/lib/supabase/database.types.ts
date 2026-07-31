@@ -58,6 +58,315 @@ export type Database = {
         };
         Relationships: [];
       };
+      categories: {
+        Row: {
+          created_at: string;
+          id: string;
+          is_active: boolean;
+          name: string;
+          sort_order: number;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          name: string;
+          sort_order?: number;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          name?: string;
+          sort_order?: number;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      menu_items: {
+        Row: {
+          category_id: string | null;
+          created_at: string;
+          description: string | null;
+          id: string;
+          is_active: boolean;
+          name: string;
+          sort_order: number;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          category_id?: string | null;
+          created_at?: string;
+          description?: string | null;
+          id?: string;
+          is_active?: boolean;
+          name: string;
+          sort_order?: number;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          category_id?: string | null;
+          created_at?: string;
+          description?: string | null;
+          id?: string;
+          is_active?: boolean;
+          name?: string;
+          sort_order?: number;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      menu_prices: {
+        Row: {
+          branch_id: string | null;
+          created_at: string;
+          id: string;
+          menu_item_id: string;
+          price: string;
+          tenant_id: string;
+          updated_at: string;
+          valid_from: string;
+          vat_rate: string;
+        };
+        Insert: {
+          branch_id?: string | null;
+          created_at?: string;
+          id?: string;
+          menu_item_id: string;
+          price: string | number;
+          tenant_id: string;
+          updated_at?: string;
+          valid_from?: string;
+          vat_rate?: string | number;
+        };
+        Update: {
+          branch_id?: string | null;
+          created_at?: string;
+          id?: string;
+          menu_item_id?: string;
+          price?: string | number;
+          tenant_id?: string;
+          updated_at?: string;
+          valid_from?: string;
+          vat_rate?: string | number;
+        };
+        Relationships: [];
+      };
+      inventory_items: {
+        Row: {
+          base_unit: string;
+          cost_per_base_unit: string;
+          created_at: string;
+          id: string;
+          is_active: boolean;
+          name: string;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          base_unit: string;
+          cost_per_base_unit?: string | number;
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          name: string;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          base_unit?: string;
+          cost_per_base_unit?: string | number;
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          name?: string;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      item_unit_conversions: {
+        Row: {
+          created_at: string;
+          factor: string;
+          from_unit: string;
+          id: string;
+          inventory_item_id: string;
+          tenant_id: string;
+          to_unit: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          factor: string | number;
+          from_unit: string;
+          id?: string;
+          inventory_item_id: string;
+          tenant_id: string;
+          to_unit: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          factor?: string | number;
+          from_unit?: string;
+          id?: string;
+          inventory_item_id?: string;
+          tenant_id?: string;
+          to_unit?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      recipes: {
+        Row: {
+          created_at: string;
+          id: string;
+          is_active: boolean;
+          menu_item_id: string | null;
+          name: string;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          menu_item_id?: string | null;
+          name: string;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          menu_item_id?: string | null;
+          name?: string;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      recipe_versions: {
+        Row: {
+          activated_at: string | null;
+          created_at: string;
+          id: string;
+          note: string | null;
+          recipe_id: string;
+          status: Database["public"]["Enums"]["recipe_version_status"];
+          tenant_id: string;
+          updated_at: string;
+          version_no: number;
+          yield_quantity: string;
+          yield_unit: string;
+        };
+        Insert: {
+          activated_at?: string | null;
+          created_at?: string;
+          id?: string;
+          note?: string | null;
+          recipe_id: string;
+          status?: Database["public"]["Enums"]["recipe_version_status"];
+          tenant_id: string;
+          updated_at?: string;
+          version_no: number;
+          yield_quantity: string | number;
+          yield_unit: string;
+        };
+        Update: {
+          activated_at?: string | null;
+          created_at?: string;
+          id?: string;
+          note?: string | null;
+          recipe_id?: string;
+          status?: Database["public"]["Enums"]["recipe_version_status"];
+          tenant_id?: string;
+          updated_at?: string;
+          version_no?: number;
+          yield_quantity?: string | number;
+          yield_unit?: string;
+        };
+        Relationships: [];
+      };
+      recipe_lines: {
+        Row: {
+          component_type: Database["public"]["Enums"]["recipe_component_type"];
+          created_at: string;
+          id: string;
+          inventory_item_id: string | null;
+          line_no: number;
+          quantity: string;
+          recipe_version_id: string;
+          sub_recipe_id: string | null;
+          tenant_id: string;
+          unit: string;
+          updated_at: string;
+          waste_percent: string;
+        };
+        Insert: {
+          component_type: Database["public"]["Enums"]["recipe_component_type"];
+          created_at?: string;
+          id?: string;
+          inventory_item_id?: string | null;
+          line_no: number;
+          quantity: string | number;
+          recipe_version_id: string;
+          sub_recipe_id?: string | null;
+          tenant_id: string;
+          unit: string;
+          updated_at?: string;
+          waste_percent?: string | number;
+        };
+        Update: {
+          component_type?: Database["public"]["Enums"]["recipe_component_type"];
+          created_at?: string;
+          id?: string;
+          inventory_item_id?: string | null;
+          line_no?: number;
+          quantity?: string | number;
+          recipe_version_id?: string;
+          sub_recipe_id?: string | null;
+          tenant_id?: string;
+          unit?: string;
+          updated_at?: string;
+          waste_percent?: string | number;
+        };
+        // Bu ilişki tanımı olmadan `recipe_versions(..., recipe_lines(...))`
+        // gömülü sorgusu tip çıkarımı yapamıyor.
+        Relationships: [
+          {
+            foreignKeyName: "recipe_lines_recipe_version_id_fkey";
+            columns: ["recipe_version_id"];
+            isOneToOne: false;
+            referencedRelation: "recipe_versions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "recipe_lines_inventory_item_id_fkey";
+            columns: ["inventory_item_id"];
+            isOneToOne: false;
+            referencedRelation: "inventory_items";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "recipe_lines_sub_recipe_id_fkey";
+            columns: ["sub_recipe_id"];
+            isOneToOne: false;
+            referencedRelation: "recipes";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       branches: {
         Row: {
           created_at: string;
@@ -220,6 +529,8 @@ export type Database = {
         | "cashier"
         | "storekeeper"
         | "accountant";
+      recipe_version_status: "draft" | "active" | "archived";
+      recipe_component_type: "ingredient" | "sub_recipe";
     };
     CompositeTypes: Record<never, never>;
   };
