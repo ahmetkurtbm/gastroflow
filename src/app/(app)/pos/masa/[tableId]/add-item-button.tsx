@@ -37,7 +37,11 @@ export function AddItemButton({
       >
         <span className="text-sm font-medium text-ink">{name}</span>
         <span className="text-xs tabular-nums text-ink-muted">
-          {price.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺
+          {price.toLocaleString("tr-TR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}{" "}
+          ₺
         </span>
       </button>
       {state.error ? (

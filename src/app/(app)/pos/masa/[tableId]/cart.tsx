@@ -15,7 +15,16 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 function formatLira(value: number): string {
-  return value.toLocaleString("tr-TR", { minimumFractionDigits: 2 }) + " ₺";
+  // maximumFractionDigits AÇIKÇA verilmezse Intl, minimumFractionDigits: 2
+  // ile birlikte 3 ondalık haneye kadar gösterebiliyor (ör. 46,667 ₺).
+  // Para birimi için bu bir gösterim hatası — kasadaki bölüşüm testinde
+  // gerçekten yaşandı.
+  return (
+    value.toLocaleString("tr-TR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }) + " ₺"
+  );
 }
 
 export function Cart({ order }: { order: OrderView }) {
