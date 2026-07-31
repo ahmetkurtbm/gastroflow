@@ -134,15 +134,24 @@ export default async function RecipeDetailPage({
         ← Reçeteler
       </Link>
 
-      <div className="mt-3 mb-6">
-        <h1 className="text-2xl font-bold tracking-tight text-ink">
-          {summary.name}
-        </h1>
-        <p className="mt-1 text-sm text-ink-muted">
-          Versiyon {summary.versionNo} · Çıktı{" "}
-          {formatQuantity(summary.yieldQuantity, summary.yieldUnit)}
-          {summary.isSubRecipe ? " · Yarı mamul" : ""}
-        </p>
+      <div className="mt-3 mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">
+            {summary.name}
+          </h1>
+          <p className="mt-1 text-sm text-ink-muted">
+            Versiyon {summary.versionNo} · Çıktı{" "}
+            {formatQuantity(summary.yieldQuantity, summary.yieldUnit)}
+            {summary.isSubRecipe ? " · Yarı mamul" : ""}
+          </p>
+        </div>
+
+        <Link
+          href={`/recipes/${id}/duzenle`}
+          className="shrink-0 rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
+        >
+          Düzenle
+        </Link>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

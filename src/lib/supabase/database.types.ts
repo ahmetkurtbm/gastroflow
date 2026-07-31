@@ -296,7 +296,15 @@ export type Database = {
           yield_quantity?: string | number;
           yield_unit?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "recipe_versions_recipe_id_fkey";
+            columns: ["recipe_id"];
+            isOneToOne: false;
+            referencedRelation: "recipes";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       recipe_lines: {
         Row: {

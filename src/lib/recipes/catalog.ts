@@ -25,7 +25,9 @@ export type RecipeSummary = {
   id: string;
   name: string;
   menuItemId: string | null;
+  versionId: string;
   versionNo: number;
+  status: "draft" | "active" | "archived";
   yieldQuantity: number;
   yieldUnit: string;
   /** Menü ürününe bağlıysa güncel satış fiyatı (TL). */
@@ -49,7 +51,18 @@ function toNumber(value: string | number | null | undefined): number {
  * Reçete ağacı özyinelemeli olduğu için parça parça okumak N+1 sorgu
  * doğururdu; motorun zaten tamamına ihtiyacı var.
  */
-export async function loadCatalog(): Promise<CatalogSnapshot> {
+export async function loadCatalog(
+  options: {
+    /**
+     * Bu reçete için (varsa) YAYINLANMAMIŞ taslak versiyonu kullan.
+     *
+     * Düzenleme ekranında maliyeti canlı göstermek için: malzeme eklerken
+     * maliyetin nereye gittiğini görmek, yayınladıktan sonra öğrenmekten
+     * çok daha faydalı.
+     */
+    preferDraftFor?: string;
+  } = {},
+): Promise<CatalogSnapshot> {
   const supabase = await createClient();
 
   const [itemsResult, conversionsResult, recipesResult, versionsResult, pricesResult] =
@@ -65,9 +78,9 @@ export async function loadCatalog(): Promise<CatalogSnapshot> {
       supabase
         .from("recipe_versions")
         .select(
-          "id, recipe_id, version_no, yield_quantity, yield_unit, recipe_lines(line_no, component_type, inventory_item_id, sub_recipe_id, quantity, unit, waste_percent)",
+          "id, recipe_id, version_no, status, yield_quantity, yield_unit, recipe_lines(line_no, component_type, inventory_item_id, sub_recipe_id, quantity, unit, waste_percent)",
         )
-        .eq("status", "active"),
+        .in("status", options.preferDraftFor ? ["active", "draft"] : ["active"]),
       supabase
         .from("menu_prices")
         .select("menu_item_id, price, valid_from")
@@ -109,7 +122,27 @@ export async function loadCatalog(): Promise<CatalogSnapshot> {
   const recipes: Recipe[] = [];
   const summaries: RecipeSummary[] = [];
 
+  // Reçete başına tek versiyon seç. Hedef reçetede taslak varsa onu, aksi
+  // hâlde yayınlanmış olanı kullan. Aynı reçetenin iki versiyonunu birden
+  // motora vermek "yinelenen kimlik" hatası verirdi.
+  type VersionRow = NonNullable<typeof versionsResult.data>[number];
+  const chosen = new Map<string, VersionRow>();
   for (const version of versionsResult.data ?? []) {
+    // Düzenlenen reçetede taslağı, diğerlerinde yayınlanmış olanı isteriz.
+    // Yayınlanmamış bir yarı mamul de listeye girer (tek versiyonu taslaksa);
+    // aksi hâlde onu kullanan reçete "bulunamadı" hatası verirdi.
+    const wanted =
+      options.preferDraftFor === version.recipe_id ? "draft" : "active";
+
+    const current = chosen.get(version.recipe_id);
+    if (!current) {
+      chosen.set(version.recipe_id, version);
+    } else if (version.status === wanted && current.status !== wanted) {
+      chosen.set(version.recipe_id, version);
+    }
+  }
+
+  for (const version of chosen.values()) {
     const meta = recipeMeta.get(version.recipe_id);
     if (!meta) continue; // Pasife alınmış reçetenin versiyonu
 
@@ -137,7 +170,9 @@ export async function loadCatalog(): Promise<CatalogSnapshot> {
       id: meta.id,
       name: meta.name,
       menuItemId: meta.menu_item_id,
+      versionId: version.id,
       versionNo: version.version_no,
+      status: version.status,
       yieldQuantity: toNumber(version.yield_quantity),
       yieldUnit: version.yield_unit,
       sellingPrice: meta.menu_item_id

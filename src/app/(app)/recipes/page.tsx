@@ -37,14 +37,31 @@ export default async function RecipesPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight text-ink">
-          Reçeteler ve maliyet
-        </h1>
-        <p className="mt-1 text-sm leading-relaxed text-ink-muted">
-          Maliyetler yayınlanmış reçete versiyonlarından hesaplanır. Bir reçeteyi
-          değiştirmek yeni versiyon açar; geçmiş raporlar olduğu gibi kalır.
-        </p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">
+            Reçeteler ve maliyet
+          </h1>
+          <p className="mt-1 text-sm leading-relaxed text-ink-muted">
+            Maliyetler yayınlanmış reçete versiyonlarından hesaplanır. Bir reçeteyi
+            değiştirmek yeni versiyon açar; geçmiş raporlar olduğu gibi kalır.
+          </p>
+        </div>
+
+        <div className="flex shrink-0 gap-2">
+          <Link
+            href="/recipes/malzemeler"
+            className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
+          >
+            Hammaddeler
+          </Link>
+          <Link
+            href="/recipes/yeni"
+            className="rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700"
+          >
+            Yeni reçete
+          </Link>
+        </div>
       </div>
 
       {summaries.length === 0 ? (
