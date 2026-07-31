@@ -50,6 +50,20 @@ Bunlar tercih değil, projenin güvenlik iddiasının dayandığı kurallar.
     `grant ... to authenticated` yazılmalı. Unutulursa uygulama gürültülü şekilde
     "permission denied" verir — sessiz sızıntıdan iyidir.
 
+## Üretim öncesi temizlik listesi
+
+Geliştirme sırasında bilerek bırakılan, gerçek müşteriye açılmadan önce
+kaldırılması gereken şeyler:
+
+- [ ] **Test garson hesabı** — `test-garson@demo.local`, şifresi depo geçmişinde.
+      Rol kapılarını canlı doğrulamak için açıldı, Faz 2'de POS'u test etmek için
+      duruyor. Silmek için:
+      `delete from auth.users where email = 'test-garson@demo.local';`
+- [ ] **`pgtap` uzantısı** — güvenlik testleri için bulut projesine kuruldu.
+      Ayrı bir test/staging projesi ayrıldığında üretimden düşür.
+- [ ] **`Demo Restoran` tenant'ı** — gerçek işletme verisiyle karışmasın.
+- [ ] Patron hesabının seed şifresi değiştirilmiş olmalı.
+
 ## Bilinen ve kabul edilen riskler
 
 **`npm audit` → 9 high, `brace-expansion` (ESLint zinciri).**
