@@ -255,3 +255,69 @@ export async function loadKitchenQueue(): Promise<KitchenTicket[]> {
     sentAt: line.sent_at as string,
   }));
 }
+
+export type OrderTrackingLine = {
+  id: string;
+  menuItemName: string;
+  quantity: number;
+  status: string;
+  sentAt: string | null;
+};
+
+export type OrderTrackingSummary = {
+  id: string;
+  orderNo: number | null;
+  tableId: string | null;
+  tableName: string | null;
+  guestCount: number | null;
+  openedAt: string;
+  total: number;
+  lines: OrderTrackingLine[];
+};
+
+/**
+ * `/orders` sipariş takip ekranı için açık adisyonların özeti.
+ *
+ * RLS zaten şube kısıtını uyguluyor (`orders_select`): garson yalnızca
+ * kendi şubesinin adisyonlarını görür, müdür/patron hepsini görür — burada
+ * ayrıca rol filtresi eklemiyoruz, veritabanı sınırı zaten yeterli.
+ */
+export async function loadOpenOrdersTracking(): Promise<OrderTrackingSummary[]> {
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from("orders")
+    .select(
+      "id, order_no, table_id, guest_count, opened_at, tables(name), order_lines(id, quantity, unit_price, status, sent_at, menu_items(name), order_line_modifiers(price_delta))",
+    )
+    .eq("status", "open")
+    .order("opened_at", { ascending: true });
+
+  return (data ?? []).map((order) => {
+    const lines = order.order_lines ?? [];
+    const total = lines.reduce((sum, line) => {
+      const modifierTotal = (line.order_line_modifiers ?? []).reduce(
+        (s, m) => s + toNumber(m.price_delta),
+        0,
+      );
+      return sum + toNumber(line.quantity) * (toNumber(line.unit_price) + modifierTotal);
+    }, 0);
+
+    return {
+      id: order.id,
+      orderNo: order.order_no,
+      tableId: order.table_id,
+      tableName: order.tables?.name ?? null,
+      guestCount: order.guest_count,
+      openedAt: order.opened_at,
+      total,
+      lines: lines.map((line) => ({
+        id: line.id,
+        menuItemName: line.menu_items?.name ?? "Bilinmeyen ürün",
+        quantity: toNumber(line.quantity),
+        status: line.status,
+        sentAt: line.sent_at,
+      })),
+    };
+  });
+}
