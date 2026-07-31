@@ -176,6 +176,42 @@ export async function removeOrderLine(formData: FormData) {
   revalidatePath("/pos", "layout");
 }
 
+const KITCHEN_TRANSITIONS = {
+  // key: mevcut durum → değer: izin verilen sonraki durum.
+  // Mutfak sırayı atlayamaz (sent'ten doğrudan served'e geçemez); bu, "unutulan"
+  // bir siparişin fark edilmeden servis edilmiş sayılmasını engeller.
+  sent: "preparing",
+  preparing: "ready",
+  ready: "served",
+} as const;
+
+const advanceSchema = z.object({
+  id: z.uuid(),
+  from: z.enum(["sent", "preparing", "ready"]),
+});
+
+/** Mutfak ekranındaki bir bileti bir sonraki adıma taşır. */
+export async function advanceKitchenTicket(formData: FormData) {
+  const input = advanceSchema.parse({
+    id: formData.get("id"),
+    from: formData.get("from"),
+  });
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("order_lines")
+    .update({ status: KITCHEN_TRANSITIONS[input.from] })
+    // `.eq("status", input.from)`: iki kişi aynı bileti aynı anda ilerletirse
+    // ikinci istek 0 satır günceller — sessizce iki adım atlanmaz.
+    .eq("id", input.id)
+    .eq("status", input.from);
+
+  if (error) throw new Error(error.message);
+  revalidatePath("/kds");
+  revalidatePath("/pos", "layout");
+  revalidatePath("/orders");
+}
+
 export async function sendToKitchen(formData: FormData) {
   const orderId = z.uuid().parse(formData.get("orderId"));
   const supabase = await createClient();

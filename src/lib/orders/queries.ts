@@ -184,3 +184,45 @@ export async function loadOpenOrderForTable(tableId: string): Promise<OrderView 
     total: lines.reduce((sum, l) => sum + l.quantity * l.unitPrice, 0),
   };
 }
+
+export type KitchenTicket = {
+  id: string;
+  menuItemName: string;
+  quantity: number;
+  note: string | null;
+  status: "sent" | "preparing" | "ready";
+  tableName: string | null;
+  orderNo: number | null;
+  /** ISO zaman damgası. Süre sayacı bunu kullanır; sorgu yalnızca
+   * gönderilmiş satırları getirdiği için null olamaz. */
+  sentAt: string;
+};
+
+/**
+ * Mutfak kuyruğu: gönderilmiş ama henüz servis edilmemiş satırlar.
+ *
+ * `sent_at` sıralı — mutfak en eski siparişi en üstte görmeli, aksi hâlde
+ * en yeni sipariş sürekli önce hazırlanır ve eski sipariş unutulur.
+ */
+export async function loadKitchenQueue(): Promise<KitchenTicket[]> {
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from("order_lines")
+    .select(
+      "id, quantity, note, status, sent_at, menu_items(name), orders(order_no, tables(name))",
+    )
+    .in("status", ["sent", "preparing", "ready"])
+    .order("sent_at", { ascending: true });
+
+  return (data ?? []).map((line) => ({
+    id: line.id,
+    menuItemName: line.menu_items?.name ?? "Bilinmeyen ürün",
+    quantity: toNumber(line.quantity),
+    note: line.note,
+    status: line.status as KitchenTicket["status"],
+    tableName: line.orders?.tables?.name ?? null,
+    orderNo: line.orders?.order_no ?? null,
+    sentAt: line.sent_at as string,
+  }));
+}
