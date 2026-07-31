@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   APP_ROLES,
+  NAV_ITEMS,
   ROLE_HOME,
+  ROLE_LABEL,
   canAccessPath,
   isPublicPath,
+  navFor,
   parseAppClaims,
   type AppRole,
 } from "./access";
@@ -76,6 +79,50 @@ describe("ROLE_HOME", () => {
       const home = ROLE_HOME[role];
       expect(home).toBeTruthy();
       expect(canAccessPath(role, home)).toBe(true);
+    }
+  });
+});
+
+describe("navFor", () => {
+  it("menüde asla erişilemeyen bir bağlantı göstermez", () => {
+    for (const role of APP_ROLES) {
+      for (const item of navFor(role)) {
+        expect(canAccessPath(role, item.href)).toBe(true);
+      }
+    }
+  });
+
+  it("erişilebilen hiçbir menü maddesini gizlemez", () => {
+    for (const role of APP_ROLES) {
+      const shown = new Set(navFor(role).map((i) => i.href));
+      const accessible = NAV_ITEMS.filter((i) => canAccessPath(role, i.href));
+      expect(shown.size).toBe(accessible.length);
+    }
+  });
+
+  it("garsona maliyet ve rapor menüsü çıkmaz", () => {
+    const hrefs = navFor("waiter").map((i) => i.href);
+    expect(hrefs).toContain("/pos");
+    expect(hrefs).not.toContain("/reports");
+    expect(hrefs).not.toContain("/recipes");
+    expect(hrefs).not.toContain("/purchasing");
+  });
+
+  it("patron her menü maddesini görür", () => {
+    expect(navFor("owner")).toHaveLength(NAV_ITEMS.length);
+  });
+
+  it("her rolün en az bir menü maddesi vardır", () => {
+    for (const role of APP_ROLES) {
+      expect(navFor(role).length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("ROLE_LABEL", () => {
+  it("her rolün Türkçe karşılığı vardır", () => {
+    for (const role of APP_ROLES) {
+      expect(ROLE_LABEL[role]).toBeTruthy();
     }
   });
 });

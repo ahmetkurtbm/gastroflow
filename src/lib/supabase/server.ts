@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 
 import { clientEnv, getServerEnv } from "@/lib/env";
 
+import type { Database } from "./database.types";
+
 /**
  * Sunucu tarafı Supabase istemcisi (Server Component / Server Action / Route Handler).
  *
@@ -12,7 +14,7 @@ import { clientEnv, getServerEnv } from "@/lib/env";
 export async function createClient() {
   const cookieStore = await cookies();
 
-  return createServerClient(
+  return createServerClient<Database>(
     clientEnv.NEXT_PUBLIC_SUPABASE_URL,
     clientEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     {
@@ -56,7 +58,7 @@ export function createServiceRoleClient() {
     );
   }
 
-  return createServerClient(
+  return createServerClient<Database>(
     clientEnv.NEXT_PUBLIC_SUPABASE_URL,
     SUPABASE_SERVICE_ROLE_KEY,
     {

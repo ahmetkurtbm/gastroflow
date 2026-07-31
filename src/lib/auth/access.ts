@@ -57,6 +57,43 @@ const PATH_ACCESS: Record<string, readonly AppRole[]> = {
   "/settings": ["owner"],
 };
 
+/**
+ * Kenar çubuğu menüsü.
+ *
+ * Rolleri burada TEKRAR tanımlamıyoruz; `navFor()` her bağlantıyı
+ * `canAccessPath` ile süzer. Böylece menüde göründüğü hâlde açılmayan
+ * (ya da tersi) bir bağlantı olması yapısal olarak imkânsız.
+ */
+export const NAV_ITEMS = [
+  { href: "/pos", label: "Sipariş Al" },
+  { href: "/orders", label: "Siparişler" },
+  { href: "/kds", label: "Mutfak" },
+  { href: "/cash", label: "Kasa" },
+  { href: "/inventory", label: "Stok" },
+  { href: "/recipes", label: "Reçeteler" },
+  { href: "/purchasing", label: "Satın Alma" },
+  { href: "/reports", label: "Raporlar" },
+  { href: "/audit", label: "Loglar" },
+  { href: "/settings", label: "Ayarlar" },
+] as const;
+
+export type NavItem = (typeof NAV_ITEMS)[number];
+
+export function navFor(role: AppRole): readonly NavItem[] {
+  return NAV_ITEMS.filter((item) => canAccessPath(role, item.href));
+}
+
+/** Rol adının Türkçe karşılığı — arayüzde göstermek için. */
+export const ROLE_LABEL: Record<AppRole, string> = {
+  owner: "Patron",
+  manager: "Müdür",
+  chef: "Mutfak",
+  waiter: "Garson",
+  cashier: "Kasa",
+  storekeeper: "Depo",
+  accountant: "Muhasebe",
+};
+
 export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(
     (base) => pathname === base || pathname.startsWith(`${base}/`),

@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GastroFlow
 
-## Getting Started
+Restoran yönetim sistemi: sipariş alma, mutfak ekranı, reçete bazlı stok düşümü,
+maliyet kontrolü, tedarik siparişi ve denetim kaydı.
 
-First, run the development server:
+Tek işletmeyle başlıyor, çok işletmeye ölçeklenecek şekilde tasarlandı.
+Ayrıntılı yol haritası ve pazar analizi: [`docs/PLAN.md`](docs/PLAN.md).
+
+## Yığın
+
+Next.js 16 (App Router) · TypeScript · Tailwind v4 · Supabase (Postgres + Auth + RLS + Realtime + Storage) · Vercel
+
+## Kurulum
 
 ```bash
+npm install
+cp .env.example .env.local   # Supabase URL ve publishable key'i doldur
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Sıfırdan bir veritabanı için:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. `supabase/migrations/` altındaki dosyaları sırayla uygula
+2. Supabase Dashboard → Authentication → Hooks → **Customize Access Token (JWT) Claims**
+   → `public.custom_access_token_hook` seç ve etkinleştir
+   *(bu adım atlanırsa JWT'ye tenant/rol bilgisi yazılmaz ve kimse hiçbir veriyi göremez)*
+3. `supabase/seed.sql` içindeki değişkenleri doldurup çalıştır — ilk işletme ve patron hesabı
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Komutlar
 
-## Learn More
+```bash
+npm run dev        # geliştirme sunucusu
+npm run build      # üretim derlemesi
+npm run typecheck  # tsc --noEmit
+npm run lint
+npm test           # vitest — saf mantık testleri
+```
 
-To learn more about Next.js, take a look at the following resources:
+Veritabanı güvenlik testleri `supabase/tests/` altında pgTAP ile.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Güvenlik yaklaşımı
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Erişim kontrolü uygulama katmanında değil, **veritabanında** zorlanır:
 
-## Deploy on Vercel
+- Her tabloda row level security `enable` **ve** `force`
+- Politikalar tenant/rol bilgisini JWT claim'inden okur; kullanıcıdan gelen
+  parametreye güvenmez
+- Denetim kaydını uygulama değil trigger yazar — bir kod yolunu atlamak izsiz
+  işlem bırakmaz; kayıtlar append-only
+- Fonksiyon çalıştırma yetkileri PUBLIC'ten iptal edilir, gerekli olanlar tek tek verilir
+- `service_role` anahtarı yalnızca sunucu tarafında kullanılır
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Uygulama tarafındaki rol kontrolleri (`src/lib/auth/access.ts`, `src/proxy.ts`)
+kullanıcı deneyimi içindir, güvenlik sınırı değildir. Kurallar ve gerekçeleri:
+[`AGENTS.md`](AGENTS.md).

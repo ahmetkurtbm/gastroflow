@@ -1,26 +1,84 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+  Tasarım notu: bu arayüz aydınlık bir mutfakta, yağlı parmakla, koşarken
+  kullanılacak. Öncelikler sırasıyla: okunaklılık, dokunma hedefi büyüklüğü,
+  yüksek kontrast. Süs en sonda.
+*/
+
+@theme {
+  /* Marka — sıcak amber. Yemek sektörüne yakın, mavi kurumsal tondan uzak. */
+  --color-brand-50: oklch(0.98 0.02 85);
+  --color-brand-100: oklch(0.95 0.05 85);
+  --color-brand-200: oklch(0.9 0.09 82);
+  --color-brand-300: oklch(0.84 0.13 78);
+  --color-brand-400: oklch(0.78 0.16 70);
+  --color-brand-500: oklch(0.71 0.18 58);
+  --color-brand-600: oklch(0.63 0.17 50);
+  --color-brand-700: oklch(0.53 0.14 46);
+  --color-brand-800: oklch(0.44 0.11 45);
+  --color-brand-900: oklch(0.37 0.09 45);
+
+  /* Durum renkleri — stok uyarıları ve sipariş gecikmeleri için */
+  --color-ok: oklch(0.65 0.16 155);
+  --color-warn: oklch(0.75 0.16 75);
+  --color-danger: oklch(0.6 0.21 25);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-stack), ui-monospace, monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/*
+  Yüzey renkleri tema değişkeni olarak değil, CSS değişkeni olarak tutuluyor;
+  böylece açık/koyu geçişinde tek yerden çevriliyor.
+*/
+:root {
+  --surface: oklch(0.99 0.002 90);
+  --surface-raised: oklch(1 0 0);
+  --surface-sunken: oklch(0.96 0.004 90);
+  --ink: oklch(0.22 0.01 60);
+  --ink-muted: oklch(0.52 0.012 60);
+  --line: oklch(0.9 0.005 80);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --surface: oklch(0.19 0.008 65);
+    --surface-raised: oklch(0.24 0.009 65);
+    --surface-sunken: oklch(0.15 0.007 65);
+    --ink: oklch(0.95 0.004 80);
+    --ink-muted: oklch(0.7 0.008 75);
+    --line: oklch(0.33 0.01 65);
   }
 }
 
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-line: var(--line);
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+/* Klavye ile gezinenler için görünür odak halkası — erişilebilirlik. */
+:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Dokunmatik cihazda çift dokunma ile yakınlaşmayı engelle: POS ekranında
+   hızlı ardışık dokunuşlar yanlışlıkla zoom tetikliyor. */
+@media (pointer: coarse) {
+  button,
+  a,
+  [role="button"] {
+    touch-action: manipulation;
+  }
 }
