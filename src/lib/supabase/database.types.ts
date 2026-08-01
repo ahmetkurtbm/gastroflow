@@ -149,6 +149,69 @@ export type Database = {
           },
         ]
       }
+      cash_sessions: {
+        Row: {
+          branch_id: string
+          closed_at: string | null
+          closed_by: string | null
+          counted_cash: number | null
+          created_at: string
+          id: string
+          note: string | null
+          opened_at: string
+          opened_by: string
+          opening_float: number
+          status: Database["public"]["Enums"]["cash_session_status"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          closed_at?: string | null
+          closed_by?: string | null
+          counted_cash?: number | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          opened_at?: string
+          opened_by: string
+          opening_float?: number
+          status?: Database["public"]["Enums"]["cash_session_status"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          closed_at?: string | null
+          closed_by?: string | null
+          counted_cash?: number | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          opened_at?: string
+          opened_by?: string
+          opening_float?: number
+          status?: Database["public"]["Enums"]["cash_session_status"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_sessions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_sessions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           created_at: string
@@ -873,6 +936,7 @@ export type Database = {
       payments: {
         Row: {
           amount: number
+          cash_session_id: string | null
           client_key: string
           created_at: string
           id: string
@@ -884,6 +948,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          cash_session_id?: string | null
           client_key: string
           created_at?: string
           id?: string
@@ -895,6 +960,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          cash_session_id?: string | null
           client_key?: string
           created_at?: string
           id?: string
@@ -905,6 +971,13 @@ export type Database = {
           tenant_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "payments_cash_session_id_fkey"
+            columns: ["cash_session_id"]
+            isOneToOne: false
+            referencedRelation: "cash_sessions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "payments_order_id_fkey"
             columns: ["order_id"]
@@ -1428,6 +1501,7 @@ export type Database = {
         | "cashier"
         | "storekeeper"
         | "accountant"
+      cash_session_status: "open" | "closed"
       line_discount_kind: "comp" | "percent" | "amount"
       line_discount_status: "pending" | "approved" | "rejected"
       order_channel: "dine_in" | "takeaway" | "delivery"
@@ -1589,6 +1663,7 @@ export const Constants = {
         "storekeeper",
         "accountant",
       ],
+      cash_session_status: ["open", "closed"],
       line_discount_kind: ["comp", "percent", "amount"],
       line_discount_status: ["pending", "approved", "rejected"],
       order_channel: ["dine_in", "takeaway", "delivery"],

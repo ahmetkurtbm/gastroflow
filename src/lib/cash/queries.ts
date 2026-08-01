@@ -27,6 +27,75 @@ function lineTotal(
   return applyLineDiscount(base, pickActiveDiscount(discountRows ?? []));
 }
 
+export type CashSessionView = {
+  id: string;
+  status: "open" | "closed";
+  openingFloat: number;
+  openedAt: string;
+  openedByName: string;
+  closedAt: string | null;
+  closedByName: string | null;
+  countedCash: number | null;
+  note: string | null;
+  totalsByMethod: { method: string; amount: number }[];
+  totalPayments: number;
+  /** Nakit için beklenen tutar: başlangıç bozukluğu + bu oturumda alınan nakit. */
+  expectedCash: number;
+};
+
+/**
+ * `/cash` ekranının üst kısmı: en son açılan kasa oturumu — açıksa canlı
+ * özet, kapalıysa son gün sonu raporu olarak gösterilir. Şube bazlı DEĞİL,
+ * tenant genelinde en yeni oturum — bu portfolyo ölçeğinde (tek şube)
+ * yeterli; çok şubeli senaryoda şube filtresi eklenir (bkz. plan §0.1 Faz 9).
+ */
+export async function loadLatestCashSession(): Promise<CashSessionView | null> {
+  const supabase = await createClient();
+
+  const { data: session } = await supabase
+    .from("cash_sessions")
+    .select("id, status, opening_float, opened_at, opened_by, closed_at, closed_by, counted_cash, note")
+    .order("opened_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!session) return null;
+
+  const { data: payments } = await supabase
+    .from("payments")
+    .select("method, amount")
+    .eq("cash_session_id", session.id);
+
+  const totalsMap = new Map<string, number>();
+  for (const p of payments ?? []) {
+    totalsMap.set(p.method, (totalsMap.get(p.method) ?? 0) + toNumber(p.amount));
+  }
+  const totalsByMethod = [...totalsMap.entries()].map(([method, amount]) => ({ method, amount }));
+  const totalPayments = totalsByMethod.reduce((s, t) => s + t.amount, 0);
+
+  const userIds = [session.opened_by, session.closed_by].filter((id): id is string => !!id);
+  const namesById = new Map<string, string>();
+  if (userIds.length > 0) {
+    const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", userIds);
+    for (const p of profiles ?? []) namesById.set(p.id, p.full_name);
+  }
+
+  return {
+    id: session.id,
+    status: session.status,
+    openingFloat: toNumber(session.opening_float),
+    openedAt: session.opened_at,
+    openedByName: namesById.get(session.opened_by) ?? "Bilinmeyen personel",
+    closedAt: session.closed_at,
+    closedByName: session.closed_by ? (namesById.get(session.closed_by) ?? "Bilinmeyen personel") : null,
+    countedCash: session.counted_cash !== null ? toNumber(session.counted_cash) : null,
+    note: session.note,
+    totalsByMethod,
+    totalPayments,
+    expectedCash: toNumber(session.opening_float) + (totalsMap.get("cash") ?? 0),
+  };
+}
+
 export type OpenOrderSummary = {
   id: string;
   orderNo: number | null;

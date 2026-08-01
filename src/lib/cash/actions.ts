@@ -53,12 +53,26 @@ export async function recordPayment(
 
     const { data: order } = await supabase
       .from("orders")
-      .select("id, status")
+      .select("id, status, branch_id")
       .eq("id", input.orderId)
       .maybeSingle();
 
     if (!order || order.status !== "open") {
       return { error: "Bu adisyon artık açık değil." };
+    }
+
+    // Her ödeme açık bir kasa oturumuna bağlanmak ZORUNDA — aksi hâlde gün
+    // sonu kapanışında "bu vardiyada ne kadar nakit girdi" sorusunun cevabı
+    // zaman aralığı tahminine kalırdı (bkz. migration 0012).
+    const { data: session } = await supabase
+      .from("cash_sessions")
+      .select("id")
+      .eq("branch_id", order.branch_id)
+      .eq("status", "open")
+      .maybeSingle();
+
+    if (!session) {
+      return { error: "Önce kasa oturumu (vardiya) açmalısın." };
     }
 
     const { error } = await supabase.from("payments").insert({
@@ -67,6 +81,7 @@ export async function recordPayment(
       method: input.method,
       amount: input.amount,
       received_by: user.userId,
+      cash_session_id: session.id,
       client_key: randomUUID(),
     });
 
@@ -108,5 +123,89 @@ export async function recordPayment(
 
   revalidatePath("/cash", "layout");
   revalidatePath("/pos", "layout");
+  return { ok: true };
+}
+
+const openSessionSchema = z.object({
+  openingFloat: z.coerce.number().min(0).max(1_000_000),
+});
+
+/** Kasa oturumu (vardiya) açar. Şube başına tek açık oturum kısıtı DB'de. */
+export async function openCashSession(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const input = openSessionSchema.parse({
+      openingFloat: formData.get("openingFloat") || 0,
+    });
+
+    const user = await requireAppUser();
+    if (!user.branchId) {
+      return { error: "Şube ataması olmayan kullanıcı kasa oturumu açamaz." };
+    }
+    const supabase = await createClient();
+
+    const { error } = await supabase.from("cash_sessions").insert({
+      tenant_id: user.tenantId,
+      branch_id: user.branchId,
+      opening_float: input.openingFloat,
+      opened_by: user.userId,
+    });
+
+    if (error) {
+      // 23505 = unique_violation → bu şubede zaten açık bir oturum var
+      // (bkz. `cash_sessions_one_open_per_branch`).
+      if (error.code === "23505") {
+        return { error: "Zaten açık bir kasa oturumu var." };
+      }
+      return { error: error.message };
+    }
+  } catch (error) {
+    return fail(error);
+  }
+
+  revalidatePath("/cash", "layout");
+  return { ok: true };
+}
+
+const closeSessionSchema = z.object({
+  sessionId: z.uuid(),
+  countedCash: z.coerce.number().min(0).max(10_000_000),
+  note: z.string().trim().max(300).optional(),
+});
+
+/** Kasa oturumunu kapatır — sayılan nakit girilir, fark raporu buradan hesaplanır. */
+export async function closeCashSession(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const input = closeSessionSchema.parse({
+      sessionId: formData.get("sessionId"),
+      countedCash: formData.get("countedCash") || 0,
+      note: formData.get("note") || undefined,
+    });
+
+    const user = await requireAppUser();
+    const supabase = await createClient();
+
+    const { error } = await supabase
+      .from("cash_sessions")
+      .update({
+        status: "closed",
+        counted_cash: input.countedCash,
+        closed_by: user.userId,
+        note: input.note,
+      })
+      .eq("id", input.sessionId)
+      .eq("status", "open");
+
+    if (error) return { error: error.message };
+  } catch (error) {
+    return fail(error);
+  }
+
+  revalidatePath("/cash", "layout");
   return { ok: true };
 }

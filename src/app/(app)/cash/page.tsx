@@ -3,7 +3,9 @@ import Link from "next/link";
 
 import { formatMoney, isZero } from "@/core/money";
 import { requireAppUser } from "@/lib/auth/current-user";
-import { loadOpenOrdersForCash } from "@/lib/cash/queries";
+import { loadLatestCashSession, loadOpenOrdersForCash } from "@/lib/cash/queries";
+
+import { CashSessionPanel } from "./cash-session-panel";
 
 export const metadata: Metadata = { title: "Kasa" };
 
@@ -13,13 +15,18 @@ function minutesSince(iso: string): number {
 
 export default async function CashPage() {
   await requireAppUser();
-  const orders = await loadOpenOrdersForCash();
+  const session = await loadLatestCashSession();
+  // Kasa oturumu açık değilse ödeme zaten alınamaz (bkz. `recordPayment`) —
+  // adisyon listesini göstermenin anlamı yok, kasiyeri kafası karışmasın.
+  const orders = session?.status === "open" ? await loadOpenOrdersForCash() : [];
 
   return (
     <div className="mx-auto max-w-2xl">
       <h1 className="mb-6 text-2xl font-bold tracking-tight text-ink">Kasa</h1>
 
-      {orders.length === 0 ? (
+      <CashSessionPanel session={session} />
+
+      {session?.status !== "open" ? null : orders.length === 0 ? (
         <p className="rounded-xl border border-line bg-surface-raised px-4 py-8 text-center text-sm text-ink-muted">
           Açık adisyon yok.
         </p>
