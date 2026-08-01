@@ -1,5 +1,7 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
+
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -60,6 +62,98 @@ export async function recordWaste(
       note: input.note,
       created_by: user.userId,
     });
+
+    if (error) return { error: error.message };
+  } catch (error) {
+    return fail(error);
+  }
+
+  revalidatePath("/inventory", "layout");
+  return { ok: true };
+}
+
+const transferSchema = z
+  .object({
+    fromLocationId: z.uuid(),
+    toLocationId: z.uuid(),
+    inventoryItemId: z.uuid(),
+    quantity: z.coerce.number().positive("Miktar sıfırdan büyük olmalı"),
+    note: z.string().trim().max(300).optional(),
+  })
+  .refine((v) => v.fromLocationId !== v.toLocationId, {
+    message: "Kaynak ve hedef lokasyon aynı olamaz.",
+    path: ["toLocationId"],
+  });
+
+/**
+ * Depolar arası transfer — ledger'a bir çıkış (`transfer_out`) ve bir giriş
+ * (`transfer_in`) satırı birlikte yazar.
+ *
+ * İkisi TEK bir insert çağrısıyla (çok satırlı VALUES) gönderiliyor —
+ * Postgres bunu tek atomik işlem olarak uygular, yani ya ikisi de yazılır
+ * ya hiçbiri; "çıkış yazıldı ama giriş yazılamadı" durumu imkânsız.
+ *
+ * İki bacak aynı `reference_id`'yi (transfer kimliği) paylaşır ama farklı
+ * `reference_type` kullanır (`stock_transfer_out` / `stock_transfer_in`) —
+ * `stock_movements_reference_item_unique` kısıtı (reference_type,
+ * reference_id, item) üçlüsüne göre çalıştığı için bu iki satır çakışmaz,
+ * ama aynı transferin tekrar gönderilmesi (ör. çift tıklama) her iki
+ * bacakta da ayrı ayrı engellenir.
+ */
+export async function recordTransfer(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const input = transferSchema.parse({
+      fromLocationId: formData.get("fromLocationId"),
+      toLocationId: formData.get("toLocationId"),
+      inventoryItemId: formData.get("inventoryItemId"),
+      quantity: formData.get("quantity"),
+      note: formData.get("note") || undefined,
+    });
+
+    const user = await requireAppUser();
+    const supabase = await createClient();
+
+    const { data: locations } = await supabase
+      .from("stock_locations")
+      .select("id, branch_id")
+      .in("id", [input.fromLocationId, input.toLocationId]);
+
+    const fromLocation = locations?.find((l) => l.id === input.fromLocationId);
+    const toLocation = locations?.find((l) => l.id === input.toLocationId);
+    if (!fromLocation || !toLocation) {
+      return { error: "Lokasyon bulunamadı." };
+    }
+
+    const transferId = randomUUID();
+    const { error } = await supabase.from("stock_movements").insert([
+      {
+        tenant_id: user.tenantId,
+        branch_id: fromLocation.branch_id,
+        location_id: input.fromLocationId,
+        inventory_item_id: input.inventoryItemId,
+        movement_type: "transfer_out",
+        quantity: -Math.abs(input.quantity),
+        reference_type: "stock_transfer_out",
+        reference_id: transferId,
+        note: input.note,
+        created_by: user.userId,
+      },
+      {
+        tenant_id: user.tenantId,
+        branch_id: toLocation.branch_id,
+        location_id: input.toLocationId,
+        inventory_item_id: input.inventoryItemId,
+        movement_type: "transfer_in",
+        quantity: Math.abs(input.quantity),
+        reference_type: "stock_transfer_in",
+        reference_id: transferId,
+        note: input.note,
+        created_by: user.userId,
+      },
+    ]);
 
     if (error) return { error: error.message };
   } catch (error) {

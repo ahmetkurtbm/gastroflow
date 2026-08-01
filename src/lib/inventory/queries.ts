@@ -153,6 +153,64 @@ export async function loadRecentWaste(limit = 30): Promise<WasteRow[]> {
   }));
 }
 
+export type TransferRow = {
+  id: string;
+  itemName: string;
+  baseUnit: string;
+  quantity: number;
+  fromLocationName: string;
+  toLocationName: string;
+  note: string | null;
+  createdAt: string;
+};
+
+/**
+ * `stock_movements`'ta bir transferin iki bacağı (`transfer_out` +
+ * `transfer_in`) aynı `reference_id`'yi paylaşır — burada eşleştirip tek bir
+ * "Depo A → Depo B" satırına dönüştürüyoruz (bkz. `recordTransfer`).
+ */
+export async function loadRecentTransfers(limit = 30): Promise<TransferRow[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("stock_movements")
+    .select(
+      "reference_id, movement_type, quantity, note, created_at, inventory_items(name, base_unit), stock_locations(name)",
+    )
+    .in("reference_type", ["stock_transfer_out", "stock_transfer_in"])
+    .order("created_at", { ascending: false })
+    .limit(limit * 2);
+
+  type Leg = NonNullable<typeof data>[number];
+  const byRef = new Map<string, { out?: Leg; in?: Leg }>();
+  for (const row of data ?? []) {
+    if (!row.reference_id) continue;
+    const entry = byRef.get(row.reference_id) ?? {};
+    if (row.movement_type === "transfer_out") entry.out = row;
+    else if (row.movement_type === "transfer_in") entry.in = row;
+    byRef.set(row.reference_id, entry);
+  }
+
+  const rows: TransferRow[] = [];
+  for (const [refId, entry] of byRef) {
+    // Çift her iki bacakla da tam gelmeliydi; eksikse (ör. limit sınırı iki
+    // bacağı ayırdıysa) satırı atla — yanlış/eksik bilgi göstermektense hiç
+    // göstermemek daha güvenli.
+    if (!entry.out || !entry.in) continue;
+    rows.push({
+      id: refId,
+      itemName: entry.out.inventory_items?.name ?? "Bilinmeyen ürün",
+      baseUnit: entry.out.inventory_items?.base_unit ?? "",
+      quantity: toNumber(entry.in.quantity),
+      fromLocationName: entry.out.stock_locations?.name ?? "Bilinmeyen lokasyon",
+      toLocationName: entry.in.stock_locations?.name ?? "Bilinmeyen lokasyon",
+      note: entry.out.note,
+      createdAt: entry.out.created_at,
+    });
+  }
+
+  return rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+}
+
 export type MovementRow = {
   id: string;
   itemName: string;

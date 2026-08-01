@@ -42,12 +42,20 @@ export default async function InventoryPage() {
             reçeteye göre otomatik yazılır.
           </p>
         </div>
-        <Link
-          href="/inventory/zayiat"
-          className="shrink-0 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700"
-        >
-          Zayiat gir
-        </Link>
+        <div className="flex shrink-0 gap-2">
+          <Link
+            href="/inventory/transfer"
+            className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:bg-surface-sunken"
+          >
+            Transfer
+          </Link>
+          <Link
+            href="/inventory/zayiat"
+            className="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+          >
+            Zayiat gir
+          </Link>
+        </div>
       </div>
 
       {lowStock.length > 0 ? (
@@ -159,8 +167,8 @@ export default async function InventoryPage() {
       </section>
 
       <p className="mt-4 text-xs text-ink-muted">
-        Depolar arası transfer, sayım ekranı ve teorik/fiili varyans raporu
-        sonraki bir aşamada eklenecek.
+        Sayım ekranı ve teorik/fiili varyans raporu sonraki bir aşamada
+        eklenecek.
       </p>
     </div>
   );
