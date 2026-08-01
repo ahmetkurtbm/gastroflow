@@ -994,6 +994,61 @@ export type Database = {
           },
         ]
       }
+      po_lines: {
+        Row: {
+          created_at: string
+          id: string
+          inventory_item_id: string
+          po_id: string
+          quantity: number
+          received_quantity: number | null
+          tenant_id: string
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          inventory_item_id: string
+          po_id: string
+          quantity: number
+          received_quantity?: number | null
+          tenant_id: string
+          unit_price: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          inventory_item_id?: string
+          po_id?: string
+          quantity?: number
+          received_quantity?: number | null
+          tenant_id?: string
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "po_lines_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "po_lines_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "po_lines_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1017,6 +1072,82 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      purchase_orders: {
+        Row: {
+          branch_id: string
+          client_key: string
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          id: string
+          note: string | null
+          received_at: string | null
+          received_by: string | null
+          requested_at: string
+          requested_by: string
+          status: Database["public"]["Enums"]["purchase_order_status"]
+          supplier_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          client_key: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          note?: string | null
+          received_at?: string | null
+          received_by?: string | null
+          requested_at?: string
+          requested_by: string
+          status?: Database["public"]["Enums"]["purchase_order_status"]
+          supplier_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          client_key?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          note?: string | null
+          received_at?: string | null
+          received_by?: string | null
+          requested_at?: string
+          requested_by?: string
+          status?: Database["public"]["Enums"]["purchase_order_status"]
+          supplier_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_orders_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       recipe_lines: {
         Row: {
@@ -1319,6 +1450,111 @@ export type Database = {
           },
         ]
       }
+      supplier_items: {
+        Row: {
+          created_at: string
+          id: string
+          inventory_item_id: string
+          min_order_quantity: number
+          price: number
+          supplier_id: string
+          supplier_sku: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          inventory_item_id: string
+          min_order_quantity?: number
+          price: number
+          supplier_id: string
+          supplier_sku?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          inventory_item_id?: string
+          min_order_quantity?: number
+          price?: number
+          supplier_id?: string
+          supplier_sku?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_items_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_items_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suppliers: {
+        Row: {
+          contact_name: string | null
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean
+          lead_time_days: number
+          name: string
+          phone: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          lead_time_days?: number
+          name: string
+          phone?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          lead_time_days?: number
+          name?: string
+          phone?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suppliers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tables: {
         Row: {
           area_id: string | null
@@ -1483,7 +1719,9 @@ export type Database = {
     }
     Functions: {
       can_read_costs: { Args: never; Returns: boolean }
+      can_read_purchasing: { Args: never; Returns: boolean }
       can_read_stock: { Args: never; Returns: boolean }
+      can_write_purchasing: { Args: never; Returns: boolean }
       can_write_stock: { Args: never; Returns: boolean }
       current_app_role: {
         Args: never
@@ -1517,6 +1755,12 @@ export type Database = {
         | "cancelled"
       order_status: "open" | "closed" | "cancelled"
       payment_method: "cash" | "card" | "meal_card" | "on_account"
+      purchase_order_status:
+        | "pending_approval"
+        | "approved"
+        | "rejected"
+        | "received"
+        | "cancelled"
       recipe_component_type: "ingredient" | "sub_recipe"
       recipe_version_status: "draft" | "active" | "archived"
       stock_location_kind: "storage" | "kitchen" | "bar"
@@ -1687,6 +1931,13 @@ export const Constants = {
       ],
       order_status: ["open", "closed", "cancelled"],
       payment_method: ["cash", "card", "meal_card", "on_account"],
+      purchase_order_status: [
+        "pending_approval",
+        "approved",
+        "rejected",
+        "received",
+        "cancelled",
+      ],
       recipe_component_type: ["ingredient", "sub_recipe"],
       recipe_version_status: ["draft", "active", "archived"],
       stock_location_kind: ["storage", "kitchen", "bar"],
