@@ -237,3 +237,37 @@ export async function loadPurchaseOrder(id: string): Promise<PurchaseOrderDetail
     totalAmount: lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0),
   };
 }
+
+export type PendingPurchaseOrder = {
+  id: string;
+  supplierName: string;
+  requestedByName: string;
+  requestedAt: string;
+  totalAmount: number;
+};
+
+/** `/m` mobil panelindeki "bekleyen onaylar" akışı için — yalnızca onay bekleyenler. */
+export async function loadPendingPurchaseOrders(): Promise<PendingPurchaseOrder[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("purchase_orders")
+    .select("id, requested_by, requested_at, suppliers(name), po_lines(quantity, unit_price)")
+    .eq("status", "pending_approval")
+    .order("requested_at", { ascending: true });
+
+  const rows = data ?? [];
+  const requesterIds = [...new Set(rows.map((r) => r.requested_by))];
+  const namesById = new Map<string, string>();
+  if (requesterIds.length > 0) {
+    const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", requesterIds);
+    for (const p of profiles ?? []) namesById.set(p.id, p.full_name);
+  }
+
+  return rows.map((po) => ({
+    id: po.id,
+    supplierName: po.suppliers?.name ?? "Bilinmeyen tedarikçi",
+    requestedByName: namesById.get(po.requested_by) ?? "Bilinmeyen personel",
+    requestedAt: po.requested_at,
+    totalAmount: (po.po_lines ?? []).reduce((s, l) => s + toNumber(l.quantity) * toNumber(l.unit_price), 0),
+  }));
+}

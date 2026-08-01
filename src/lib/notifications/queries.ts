@@ -125,3 +125,121 @@ export async function loadRecentNotificationLog(limit = 30): Promise<LogRow[]> {
     sentAt: r.sent_at,
   }));
 }
+
+export type AlertRow = {
+  id: string;
+  eventType: NotificationEventType;
+  status: string;
+  createdAt: string;
+  title: string;
+  detail: string;
+};
+
+const ALERT_TITLE: Record<NotificationEventType, string> = {
+  low_stock: "Kritik stok",
+  negative_stock: "Negatif stok",
+  approval_pending: "Onay bekliyor",
+  po_approved: "Sipariş onaylandı",
+  cash_shortage: "Kasa sayım farkı",
+  day_end_summary: "Gün sonu özeti",
+  weekly_cost_report: "Haftalık maliyet raporu",
+};
+
+function formatLira(value: number): string {
+  return value.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ₺";
+}
+
+/**
+ * `/m` mobil panelindeki olay akışı — `notification_outbox`'ı olduğu gibi
+ * gösteriyor (ayrı bir "olay geçmişi" tablosu yok, ihtiyaç da yok: outbox
+ * zaten "neler oldu"nun tam kaydı, bkz. Faz 5). Ürün/lokasyon/tedarikçi
+ * adlarını payload'daki kimliklerden toplu (N+1 değil) çözüyor.
+ */
+export async function loadRecentAlerts(limit = 15): Promise<AlertRow[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("notification_outbox")
+    .select("id, event_type, status, payload, created_at")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  const rows = data ?? [];
+
+  const itemIds = new Set<string>();
+  const locationIds = new Set<string>();
+  const supplierIds = new Set<string>();
+  for (const r of rows) {
+    const p = r.payload as Record<string, unknown>;
+    if (typeof p.itemId === "string") itemIds.add(p.itemId);
+    if (typeof p.locationId === "string") locationIds.add(p.locationId);
+    if (typeof p.supplierId === "string") supplierIds.add(p.supplierId);
+  }
+
+  const [itemsResult, locationsResult, suppliersResult] = await Promise.all([
+    itemIds.size > 0
+      ? supabase.from("inventory_items").select("id, name, base_unit").in("id", [...itemIds])
+      : Promise.resolve({ data: [] as { id: string; name: string; base_unit: string }[] }),
+    locationIds.size > 0
+      ? supabase.from("stock_locations").select("id, name").in("id", [...locationIds])
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    supplierIds.size > 0
+      ? supabase.from("suppliers").select("id, name").in("id", [...supplierIds])
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+  ]);
+
+  const itemById = new Map((itemsResult.data ?? []).map((i) => [i.id, i]));
+  const locationById = new Map((locationsResult.data ?? []).map((l) => [l.id, l.name]));
+  const supplierById = new Map((suppliersResult.data ?? []).map((s) => [s.id, s.name]));
+
+  return rows.map((r) => {
+    const eventType = r.event_type as NotificationEventType;
+    const p = r.payload as Record<string, unknown>;
+    let detail = "";
+
+    switch (eventType) {
+      case "low_stock":
+      case "negative_stock": {
+        const item = typeof p.itemId === "string" ? itemById.get(p.itemId) : undefined;
+        const locationName =
+          typeof p.locationId === "string" ? (locationById.get(p.locationId) ?? "Bilinmeyen lokasyon") : "";
+        const balance = typeof p.balance === "number" ? p.balance : Number(p.balance ?? 0);
+        detail = `${item?.name ?? "Bilinmeyen ürün"} (${locationName}) — bakiye ${balance} ${item?.base_unit ?? ""}`;
+        break;
+      }
+      case "approval_pending":
+        detail =
+          p.kind === "purchase_order"
+            ? `Satın alma siparişi${
+                typeof p.supplierId === "string" ? ` — ${supplierById.get(p.supplierId) ?? "Bilinmeyen tedarikçi"}` : ""
+              }`
+            : "İkram/indirim isteği";
+        break;
+      case "po_approved":
+        detail =
+          typeof p.supplierId === "string"
+            ? `${supplierById.get(p.supplierId) ?? "Bilinmeyen tedarikçi"} siparişi onaylandı`
+            : "Sipariş onaylandı";
+        break;
+      case "cash_shortage": {
+        const diff = typeof p.diff === "number" ? p.diff : Number(p.diff ?? 0);
+        detail = `Fark: ${diff > 0 ? "+" : ""}${formatLira(diff)}`;
+        break;
+      }
+      case "day_end_summary":
+        detail = "Bir kasa oturumu kapandı";
+        break;
+      case "weekly_cost_report":
+        detail = "Haftalık rapor hazır";
+        break;
+    }
+
+    return {
+      id: r.id,
+      eventType,
+      status: r.status,
+      createdAt: r.created_at,
+      title: ALERT_TITLE[eventType] ?? eventType,
+      detail,
+    };
+  });
+}

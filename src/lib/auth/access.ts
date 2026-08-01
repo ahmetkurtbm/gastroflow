@@ -74,6 +74,7 @@ export const NAV_ITEMS = [
   { href: "/recipes", label: "Reçeteler" },
   { href: "/purchasing", label: "Satın Alma" },
   { href: "/reports", label: "Raporlar" },
+  { href: "/m", label: "Patron Paneli" },
   { href: "/approvals", label: "Onaylar" },
   { href: "/audit", label: "Loglar" },
   { href: "/settings", label: "Ayarlar" },
