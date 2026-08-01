@@ -100,6 +100,59 @@ export async function loadLowStock(): Promise<LowStockRow[]> {
   }));
 }
 
+export type StockPickLists = {
+  items: { id: string; name: string; baseUnit: string }[];
+  locations: { id: string; name: string }[];
+};
+
+/** Zayiat/transfer/sayım formlarının dropdown'ları için ortak liste. */
+export async function loadStockPickLists(): Promise<StockPickLists> {
+  const supabase = await createClient();
+  const [itemsResult, locationsResult] = await Promise.all([
+    supabase.from("inventory_items").select("id, name, base_unit").eq("is_active", true).order("name"),
+    supabase.from("stock_locations").select("id, name").eq("is_active", true).order("name"),
+  ]);
+
+  return {
+    items: (itemsResult.data ?? []).map((i) => ({ id: i.id, name: i.name, baseUnit: i.base_unit })),
+    locations: (locationsResult.data ?? []).map((l) => ({ id: l.id, name: l.name })),
+  };
+}
+
+export type WasteRow = {
+  id: string;
+  itemName: string;
+  locationName: string;
+  quantity: number;
+  baseUnit: string;
+  reason: string;
+  note: string | null;
+  createdAt: string;
+};
+
+export async function loadRecentWaste(limit = 30): Promise<WasteRow[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("stock_movements")
+    .select(
+      "id, quantity, waste_reason, note, created_at, inventory_items(name, base_unit), stock_locations(name)",
+    )
+    .eq("movement_type", "waste")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    itemName: row.inventory_items?.name ?? "Bilinmeyen ürün",
+    locationName: row.stock_locations?.name ?? "Bilinmeyen lokasyon",
+    quantity: toNumber(row.quantity),
+    baseUnit: row.inventory_items?.base_unit ?? "",
+    reason: row.waste_reason ?? "other",
+    note: row.note,
+    createdAt: row.created_at,
+  }));
+}
+
 export type MovementRow = {
   id: string;
   itemName: string;

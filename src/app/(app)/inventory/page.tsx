@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { formatQuantity } from "@/core/units";
 import { loadLowStock, loadRecentMovements, loadStockOverview } from "@/lib/inventory/queries";
@@ -32,13 +33,21 @@ export default async function InventoryPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight text-ink">Stok</h1>
-        <p className="mt-1 text-sm leading-relaxed text-ink-muted">
-          Bakiye bir sayı olarak saklanmıyor; her satırın altındaki hareket
-          defterinden anlık hesaplanıyor. Satıştan düşüm, adisyon kapanınca
-          reçeteye göre otomatik yazılır.
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">Stok</h1>
+          <p className="mt-1 text-sm leading-relaxed text-ink-muted">
+            Bakiye bir sayı olarak saklanmıyor; her satırın altındaki hareket
+            defterinden anlık hesaplanıyor. Satıştan düşüm, adisyon kapanınca
+            reçeteye göre otomatik yazılır.
+          </p>
+        </div>
+        <Link
+          href="/inventory/zayiat"
+          className="shrink-0 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+        >
+          Zayiat gir
+        </Link>
       </div>
 
       {lowStock.length > 0 ? (
@@ -150,8 +159,8 @@ export default async function InventoryPage() {
       </section>
 
       <p className="mt-4 text-xs text-ink-muted">
-        Zayiat girişi, depolar arası transfer, sayım ekranı ve teorik/fiili
-        varyans raporu sonraki bir aşamada eklenecek.
+        Depolar arası transfer, sayım ekranı ve teorik/fiili varyans raporu
+        sonraki bir aşamada eklenecek.
       </p>
     </div>
   );

@@ -1256,6 +1256,7 @@ export type Database = {
           reference_id: string | null
           reference_type: string | null
           tenant_id: string
+          waste_reason: Database["public"]["Enums"]["waste_reason"] | null
         }
         Insert: {
           branch_id: string
@@ -1270,6 +1271,7 @@ export type Database = {
           reference_id?: string | null
           reference_type?: string | null
           tenant_id: string
+          waste_reason?: Database["public"]["Enums"]["waste_reason"] | null
         }
         Update: {
           branch_id?: string
@@ -1284,6 +1286,7 @@ export type Database = {
           reference_id?: string | null
           reference_type?: string | null
           tenant_id?: string
+          waste_reason?: Database["public"]["Enums"]["waste_reason"] | null
         }
         Relationships: [
           {
@@ -1527,6 +1530,13 @@ export type Database = {
         | "production_out"
         | "count_adjustment"
         | "reversal"
+      waste_reason:
+        | "spoilage"
+        | "prep_error"
+        | "dropped"
+        | "expired"
+        | "customer_return"
+        | "other"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1690,6 +1700,14 @@ export const Constants = {
         "production_out",
         "count_adjustment",
         "reversal",
+      ],
+      waste_reason: [
+        "spoilage",
+        "prep_error",
+        "dropped",
+        "expired",
+        "customer_return",
+        "other",
       ],
     },
   },
