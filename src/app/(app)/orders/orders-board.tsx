@@ -4,7 +4,10 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import type { OrderTrackingSummary } from "@/lib/orders/queries";
+import { applyLineDiscount, pickActiveDiscount } from "@/lib/orders/types";
 import { createClient } from "@/lib/supabase/client";
+
+const DISCOUNT_SELECT = "line_discounts(id, kind, value, status, reason, created_at)";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Gönderilmedi",
@@ -77,6 +80,14 @@ function OrderCard({ order }: { order: OrderTrackingSummary }) {
               <li key={line.id} className="flex items-center justify-between text-xs">
                 <span className={isLate ? "font-medium text-danger" : "text-ink"}>
                   {line.quantity}× {line.menuItemName}
+                  {line.discount?.status === "pending" ? (
+                    <span className="ml-1.5 text-warn">· onay bekliyor</span>
+                  ) : null}
+                  {line.discount?.status === "approved" ? (
+                    <span className="ml-1.5 text-ok">
+                      · {line.discount.kind === "comp" ? "ikram" : "indirimli"}
+                    </span>
+                  ) : null}
                 </span>
                 <span className={isLate ? "font-medium text-danger" : "text-ink-muted"}>
                   {STATUS_LABEL[line.status] ?? line.status}
@@ -122,7 +133,7 @@ export function OrdersBoard({
       const { data } = await supabase
         .from("orders")
         .select(
-          "id, order_no, table_id, guest_count, opened_at, tables(name), order_lines(id, quantity, unit_price, status, sent_at, menu_items(name), order_line_modifiers(price_delta))",
+          `id, order_no, table_id, guest_count, opened_at, tables(name), order_lines(id, quantity, unit_price, status, sent_at, menu_items(name), order_line_modifiers(price_delta), ${DISCOUNT_SELECT})`,
         )
         .eq("status", "open")
         .order("opened_at", { ascending: true });
@@ -135,7 +146,8 @@ export function OrdersBoard({
               (s, m) => s + toNumber(m.price_delta),
               0,
             );
-            return sum + toNumber(line.quantity) * (toNumber(line.unit_price) + modifierTotal);
+            const base = toNumber(line.quantity) * (toNumber(line.unit_price) + modifierTotal);
+            return sum + applyLineDiscount(base, pickActiveDiscount(line.line_discounts ?? []));
           }, 0);
 
           return {
@@ -152,6 +164,7 @@ export function OrdersBoard({
               quantity: toNumber(line.quantity),
               status: line.status,
               sentAt: line.sent_at,
+              discount: pickActiveDiscount(line.line_discounts ?? []),
             })),
           };
         }),
@@ -170,6 +183,11 @@ export function OrdersBoard({
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "order_lines", filter: `tenant_id=eq.${tenantId}` },
+        () => void refetch(),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "line_discounts", filter: `tenant_id=eq.${tenantId}` },
         () => void refetch(),
       )
       .subscribe();

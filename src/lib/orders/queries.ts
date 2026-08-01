@@ -1,9 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 
-import { effectiveUnitPrice } from "./types";
-import type { MenuCategory, MenuModifierGroup, OrderLineView, OrderView } from "./types";
+import { applyLineDiscount, lineTotal, pickActiveDiscount } from "./types";
+import type { LineDiscountView, MenuCategory, MenuModifierGroup, OrderLineView, OrderView } from "./types";
 
 export type {
+  LineDiscountView,
   MenuCategory,
   MenuModifier,
   MenuModifierGroup,
@@ -11,7 +12,9 @@ export type {
   OrderLineView,
   OrderView,
 } from "./types";
-export { effectiveUnitPrice } from "./types";
+export { effectiveUnitPrice, lineTotal } from "./types";
+
+const DISCOUNT_SELECT = "line_discounts(id, kind, value, status, reason, created_at)";
 
 function toNumber(value: string | number | null | undefined): number {
   return typeof value === "number" ? value : Number(value ?? 0);
@@ -53,7 +56,7 @@ export async function loadFloorPlan(): Promise<FloorArea[]> {
     supabase
       .from("orders")
       .select(
-        "id, table_id, order_no, opened_at, guest_count, order_lines(quantity, unit_price, status, order_line_modifiers(price_delta))",
+        `id, table_id, order_no, opened_at, guest_count, order_lines(quantity, unit_price, status, order_line_modifiers(price_delta), ${DISCOUNT_SELECT})`,
       )
       .eq("status", "open"),
   ]);
@@ -67,7 +70,8 @@ export async function loadFloorPlan(): Promise<FloorArea[]> {
         (s, m) => s + toNumber(m.price_delta),
         0,
       );
-      return sum + toNumber(line.quantity) * (toNumber(line.unit_price) + modifierTotal);
+      const base = toNumber(line.quantity) * (toNumber(line.unit_price) + modifierTotal);
+      return sum + applyLineDiscount(base, pickActiveDiscount(line.line_discounts ?? []));
     }, 0);
     orderByTable.set(order.table_id, {
       id: order.id,
@@ -171,7 +175,7 @@ export async function loadOpenOrderForTable(tableId: string): Promise<OrderView 
   const { data: order } = await supabase
     .from("orders")
     .select(
-      "id, order_no, table_id, guest_count, tables(name), order_lines(id, quantity, unit_price, status, note, menu_items(name), order_line_modifiers(name, price_delta))",
+      `id, order_no, table_id, guest_count, tables(name), order_lines(id, quantity, unit_price, status, note, menu_items(name), order_line_modifiers(name, price_delta), ${DISCOUNT_SELECT})`,
     )
     .eq("table_id", tableId)
     .eq("status", "open")
@@ -191,6 +195,7 @@ export async function loadOpenOrderForTable(tableId: string): Promise<OrderView 
       })),
       status: line.status,
       note: line.note,
+      discount: pickActiveDiscount(line.line_discounts ?? []),
     }))
     // Yeni eklenenler altta değil üstte görünsün; garson son eklediğini arar.
     .reverse();
@@ -202,7 +207,7 @@ export async function loadOpenOrderForTable(tableId: string): Promise<OrderView 
     tableName: order.tables?.name ?? null,
     guestCount: order.guest_count,
     lines,
-    total: lines.reduce((sum, l) => sum + l.quantity * effectiveUnitPrice(l), 0),
+    total: lines.reduce((sum, l) => sum + lineTotal(l), 0),
   };
 }
 
@@ -262,6 +267,7 @@ export type OrderTrackingLine = {
   quantity: number;
   status: string;
   sentAt: string | null;
+  discount: LineDiscountView | null;
 };
 
 export type OrderTrackingSummary = {
@@ -288,7 +294,7 @@ export async function loadOpenOrdersTracking(): Promise<OrderTrackingSummary[]> 
   const { data } = await supabase
     .from("orders")
     .select(
-      "id, order_no, table_id, guest_count, opened_at, tables(name), order_lines(id, quantity, unit_price, status, sent_at, menu_items(name), order_line_modifiers(price_delta))",
+      `id, order_no, table_id, guest_count, opened_at, tables(name), order_lines(id, quantity, unit_price, status, sent_at, menu_items(name), order_line_modifiers(price_delta), ${DISCOUNT_SELECT})`,
     )
     .eq("status", "open")
     .order("opened_at", { ascending: true });
@@ -300,7 +306,8 @@ export async function loadOpenOrdersTracking(): Promise<OrderTrackingSummary[]> 
         (s, m) => s + toNumber(m.price_delta),
         0,
       );
-      return sum + toNumber(line.quantity) * (toNumber(line.unit_price) + modifierTotal);
+      const base = toNumber(line.quantity) * (toNumber(line.unit_price) + modifierTotal);
+      return sum + applyLineDiscount(base, pickActiveDiscount(line.line_discounts ?? []));
     }, 0);
 
     return {
@@ -317,7 +324,67 @@ export async function loadOpenOrdersTracking(): Promise<OrderTrackingSummary[]> 
         quantity: toNumber(line.quantity),
         status: line.status,
         sentAt: line.sent_at,
+        discount: pickActiveDiscount(line.line_discounts ?? []),
       })),
     };
   });
+}
+
+export type PendingDiscountRequest = {
+  id: string;
+  kind: "comp" | "percent" | "amount";
+  value: number;
+  reason: string;
+  createdAt: string;
+  requestedByName: string;
+  menuItemName: string;
+  quantity: number;
+  unitPrice: number;
+  tableName: string | null;
+  orderNo: number | null;
+};
+
+/**
+ * `/approvals` ekranı için bekleyen ikram/iskonto istekleri.
+ *
+ * `line_discounts.requested_by` `auth.users`'a referans veriyor, `profiles`
+ * tablosuna değil — PostgREST ikisi arasında FK olmadığı için otomatik embed
+ * edemiyor. Bu yüzden istekçi adını ayrı bir sorguyla eşliyoruz.
+ */
+export async function loadPendingDiscounts(): Promise<PendingDiscountRequest[]> {
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from("line_discounts")
+    .select(
+      "id, kind, value, reason, created_at, requested_by, order_lines(quantity, unit_price, menu_items(name), orders(order_no, tables(name)))",
+    )
+    .eq("status", "pending")
+    .order("created_at", { ascending: true });
+
+  const requests = data ?? [];
+  const requesterIds = [...new Set(requests.map((r) => r.requested_by))];
+
+  const namesById = new Map<string, string>();
+  if (requesterIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", requesterIds);
+    for (const p of profiles ?? []) namesById.set(p.id, p.full_name);
+  }
+
+  return requests.map((r) => ({
+    id: r.id,
+    kind: r.kind,
+    value: toNumber(r.value),
+    reason: r.reason,
+    createdAt: r.created_at,
+    requestedByName: namesById.get(r.requested_by) ?? "Bilinmeyen personel",
+    menuItemName: r.order_lines?.menu_items?.name ?? "Bilinmeyen ürün",
+    quantity: toNumber(r.order_lines?.quantity),
+    unitPrice: toNumber(r.order_lines?.unit_price),
+    tableName: r.order_lines?.orders?.tables?.name ?? null,
+    orderNo: r.order_lines?.orders?.order_no ?? null,
+  }));
 }

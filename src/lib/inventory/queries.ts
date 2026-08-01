@@ -92,11 +92,11 @@ export async function loadLowStock(): Promise<LowStockRow[]> {
     .order("item_name");
 
   return (data ?? []).map((row) => ({
-    itemName: row.item_name,
-    locationName: row.location_name,
+    itemName: row.item_name ?? "Bilinmeyen kalem",
+    locationName: row.location_name ?? "Bilinmeyen depo",
     balance: toNumber(row.balance),
     reorderPoint: toNumber(row.reorder_point),
-    baseUnit: row.base_unit,
+    baseUnit: row.base_unit ?? "",
   }));
 }
 

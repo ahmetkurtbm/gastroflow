@@ -154,7 +154,7 @@ export async function addOrderLine(
 
     // Modifier ad/fiyatını burada, veritabanından okuyup dondurüyoruz —
     // istemciden gelen değere güvenmiyoruz.
-    let modifiers: { name: string; price_delta: string }[] = [];
+    let modifiers: { name: string; price_delta: number }[] = [];
     if (input.modifierIds && input.modifierIds.length > 0) {
       const { data: modifierRows } = await supabase
         .from("modifiers")
@@ -273,6 +273,97 @@ export async function advanceKitchenTicket(formData: FormData) {
   revalidatePath("/kds");
   revalidatePath("/pos", "layout");
   revalidatePath("/orders");
+}
+
+const requestDiscountSchema = z.object({
+  orderLineId: z.uuid(),
+  kind: z.enum(["comp", "percent", "amount"]),
+  value: z.coerce.number().min(0).max(1_000_000),
+  reason: z.string().trim().min(3).max(200),
+});
+
+/**
+ * Bir satıra ikram/iskonto isteği açar.
+ *
+ * Müdür/patron kendi isteğini anında ONAYLANMIŞ olarak açar — kendi kendini
+ * onaylatmasına gerek yok, RLS zaten yalnızca bu iki rolün bunu yapmasına
+ * izin veriyor (bkz. migration 0011, `line_discounts_insert`). Diğer roller
+ * (garson, kasa) isteği BEKLEYEN olarak açar; müdür/patron `/approvals`'tan
+ * karar verene kadar fiyata yansımaz.
+ */
+export async function requestLineDiscount(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const input = requestDiscountSchema.parse({
+      orderLineId: formData.get("orderLineId"),
+      kind: formData.get("kind"),
+      value: formData.get("kind") === "comp" ? 0 : formData.get("value") || 0,
+      reason: formData.get("reason"),
+    });
+
+    const user = await requireAppUser();
+    const isManager = user.role === "owner" || user.role === "manager";
+    const supabase = await createClient();
+
+    const { error } = await supabase.from("line_discounts").insert({
+      tenant_id: user.tenantId,
+      order_line_id: input.orderLineId,
+      kind: input.kind,
+      value: input.kind === "comp" ? 0 : input.value,
+      reason: input.reason,
+      requested_by: user.userId,
+      status: isManager ? "approved" : "pending",
+      decided_by: isManager ? user.userId : null,
+    });
+
+    if (error) {
+      // 23505 = unique_violation → bu satırda zaten bekleyen bir istek var
+      // (bkz. `line_discounts_one_pending_per_line`).
+      if (error.code === "23505") {
+        return { error: "Bu üründe zaten bekleyen bir ikram/indirim isteği var." };
+      }
+      return { error: error.message };
+    }
+  } catch (error) {
+    return fail(error);
+  }
+
+  revalidatePath("/pos", "layout");
+  revalidatePath("/orders");
+  revalidatePath("/cash", "layout");
+  revalidatePath("/approvals");
+  return { ok: true };
+}
+
+const decideDiscountSchema = z.object({
+  id: z.uuid(),
+  decision: z.enum(["approved", "rejected"]),
+});
+
+/** Müdür/patron bekleyen bir ikram/iskonto isteğini onaylar veya reddeder. */
+export async function decideLineDiscount(formData: FormData) {
+  const input = decideDiscountSchema.parse({
+    id: formData.get("id"),
+    decision: formData.get("decision"),
+  });
+
+  const user = await requireAppUser();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("line_discounts")
+    .update({ status: input.decision, decided_by: user.userId })
+    .eq("id", input.id)
+    .eq("status", "pending");
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/approvals");
+  revalidatePath("/pos", "layout");
+  revalidatePath("/orders");
+  revalidatePath("/cash", "layout");
 }
 
 export async function sendToKitchen(formData: FormData) {

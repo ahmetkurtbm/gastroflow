@@ -1,10 +1,12 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 
 import type { OptimisticLine } from "@/lib/offline/use-offline-order";
 import { removeOrderLine } from "@/lib/orders/actions";
-import { effectiveUnitPrice, type OrderLineView, type OrderView } from "@/lib/orders/types";
+import { lineTotal, type OrderLineView, type OrderView } from "@/lib/orders/types";
+
+import { DiscountRequestForm } from "./discount-request-form";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Gönderilmedi",
@@ -44,9 +46,11 @@ export function Cart({
   onCancelOptimistic: (id: string) => void;
 }) {
   const [pending, startTransition] = useTransition();
+  const [discountLineId, setDiscountLineId] = useState<string | null>(null);
   const pendingCount = order.lines.filter((l) => l.status === "pending").length;
   const total =
     order.total + optimisticLines.reduce((sum, l) => sum + l.quantity * l.unitPrice, 0);
+  const discountTarget = order.lines.find((l) => l.id === discountLineId) ?? null;
 
   return (
     <div className="flex h-full flex-col">
@@ -106,44 +110,72 @@ export function Cart({
               </li>
             ))}
 
-            {order.lines.map((line: OrderLineView) => (
-              <li key={line.id} className="flex items-start justify-between gap-2 px-4 py-2.5">
-                <div className="min-w-0">
-                  <p className="text-sm text-ink">
-                    <span className="font-medium tabular-nums">{line.quantity}×</span>{" "}
-                    {line.menuItemName}
-                  </p>
-                  <p className="text-xs text-ink-muted">
-                    {STATUS_LABEL[line.status] ?? line.status}
-                    {line.modifiers.length > 0
-                      ? ` · ${line.modifiers.map((m) => m.name).join(", ")}`
-                      : ""}
-                    {line.note ? ` · ${line.note}` : ""}
-                  </p>
-                </div>
-
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="text-sm tabular-nums text-ink">
-                    {formatLira(line.quantity * effectiveUnitPrice(line))}
-                  </span>
-                  {line.status === "pending" ? (
-                    <form
-                      action={(fd) => startTransition(() => removeOrderLine(fd))}
-                    >
-                      <input type="hidden" name="id" value={line.id} />
-                      <button
-                        type="submit"
-                        disabled={!isOnline}
-                        aria-label={`${line.menuItemName} satırını kaldır`}
-                        className="rounded p-1 text-ink-muted hover:bg-danger/10 hover:text-danger disabled:opacity-30"
+            {order.lines.map((line: OrderLineView) => {
+              const discount = line.discount;
+              const canRequestDiscount =
+                line.status !== "cancelled" && (!discount || discount.status === "rejected");
+              return (
+                <li key={line.id} className="flex items-start justify-between gap-2 px-4 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-sm text-ink">
+                      <span className="font-medium tabular-nums">{line.quantity}×</span>{" "}
+                      {line.menuItemName}
+                    </p>
+                    <p className="text-xs text-ink-muted">
+                      {STATUS_LABEL[line.status] ?? line.status}
+                      {line.modifiers.length > 0
+                        ? ` · ${line.modifiers.map((m) => m.name).join(", ")}`
+                        : ""}
+                      {line.note ? ` · ${line.note}` : ""}
+                    </p>
+                    {discount && discount.status !== "rejected" ? (
+                      <p
+                        className={`mt-0.5 text-xs font-medium ${
+                          discount.status === "approved" ? "text-ok" : "text-warn"
+                        }`}
                       >
-                        ✕
+                        {discount.kind === "comp"
+                          ? "İkram"
+                          : discount.kind === "percent"
+                            ? `%${discount.value} indirim`
+                            : `${discount.value.toLocaleString("tr-TR")} ₺ indirim`}
+                        {discount.status === "pending" ? " · onay bekliyor" : ""}
+                      </p>
+                    ) : null}
+                    {canRequestDiscount ? (
+                      <button
+                        type="button"
+                        onClick={() => setDiscountLineId(line.id)}
+                        className="mt-0.5 text-xs text-brand-600 underline-offset-2 hover:underline"
+                      >
+                        İkram / İndirim
                       </button>
-                    </form>
-                  ) : null}
-                </div>
-              </li>
-            ))}
+                    ) : null}
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-sm tabular-nums text-ink">
+                      {formatLira(lineTotal(line))}
+                    </span>
+                    {line.status === "pending" ? (
+                      <form
+                        action={(fd) => startTransition(() => removeOrderLine(fd))}
+                      >
+                        <input type="hidden" name="id" value={line.id} />
+                        <button
+                          type="submit"
+                          disabled={!isOnline}
+                          aria-label={`${line.menuItemName} satırını kaldır`}
+                          className="rounded p-1 text-ink-muted hover:bg-danger/10 hover:text-danger disabled:opacity-30"
+                        >
+                          ✕
+                        </button>
+                      </form>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -167,6 +199,14 @@ export function Cart({
             : "Gönderilecek ürün yok"}
         </button>
       </div>
+
+      {discountTarget ? (
+        <DiscountRequestForm
+          orderLineId={discountTarget.id}
+          itemName={discountTarget.menuItemName}
+          onClose={() => setDiscountLineId(null)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -63,7 +63,8 @@ export default async function PaymentPage({
         </h2>
         <ul className="divide-y divide-line">
           {order.lines.map((line, index) => {
-            const modifierTotal = line.modifiers.reduce((s, m) => s + m.priceDelta, 0);
+            const discount = line.discount;
+            const isCompOrApproved = discount?.status === "approved";
             return (
               <li key={index} className="px-4 py-2.5 text-sm">
                 <div className="flex items-center justify-between">
@@ -72,7 +73,7 @@ export default async function PaymentPage({
                     {line.menuItemName}
                   </span>
                   <span className="tabular-nums text-ink-muted">
-                    {formatMoney(money(line.quantity * (line.unitPrice + modifierTotal)))}
+                    {formatMoney(money(line.total))}
                   </span>
                 </div>
                 {line.modifiers.length > 0 ? (
@@ -83,6 +84,27 @@ export default async function PaymentPage({
                           `${m.name}${m.priceDelta !== 0 ? ` (${m.priceDelta > 0 ? "+" : ""}${m.priceDelta.toLocaleString("tr-TR")} ₺)` : ""}`,
                       )
                       .join(", ")}
+                  </p>
+                ) : null}
+                {discount ? (
+                  <p
+                    className={`mt-0.5 text-xs font-medium ${
+                      isCompOrApproved
+                        ? "text-ok"
+                        : discount.status === "pending"
+                          ? "text-warn"
+                          : "text-danger"
+                    }`}
+                  >
+                    {discount.kind === "comp"
+                      ? "İkram"
+                      : discount.kind === "percent"
+                        ? `%${discount.value} indirim`
+                        : `${discount.value.toLocaleString("tr-TR")} ₺ indirim`}
+                    {discount.status === "pending" ? " · onay bekliyor" : ""}
+                    {discount.status === "rejected" ? " · reddedildi" : ""}
+                    {" · "}
+                    {discount.reason}
                   </p>
                 ) : null}
               </li>

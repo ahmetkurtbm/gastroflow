@@ -43,6 +43,10 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return <select {...props} className={inputClass} />;
 }
 
+export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea {...props} className={inputClass} />;
+}
+
 export function FormError({ message }: { message?: string }) {
   if (!message) return null;
   return (

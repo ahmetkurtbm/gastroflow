@@ -52,6 +52,7 @@ const PATH_ACCESS: Record<string, readonly AppRole[]> = {
   "/recipes": ["chef", "manager", "owner", "accountant"],
   "/purchasing": ["storekeeper", "manager", "owner", "accountant"],
   "/reports": ["manager", "owner", "accountant"],
+  "/approvals": ["manager", "owner"],
   "/audit": ["owner"],
   "/m": ["manager", "owner"],
   "/settings": ["owner"],
@@ -73,6 +74,7 @@ export const NAV_ITEMS = [
   { href: "/recipes", label: "Reçeteler" },
   { href: "/purchasing", label: "Satın Alma" },
   { href: "/reports", label: "Raporlar" },
+  { href: "/approvals", label: "Onaylar" },
   { href: "/audit", label: "Loglar" },
   { href: "/settings", label: "Ayarlar" },
 ] as const;
