@@ -658,6 +658,142 @@ export type Database = {
           },
         ]
       }
+      notification_log: {
+        Row: {
+          body: string
+          error: string | null
+          event_type: Database["public"]["Enums"]["notification_event_type"]
+          id: string
+          outbox_id: string | null
+          recipient_email: string
+          recipient_role: Database["public"]["Enums"]["app_role"] | null
+          sent_at: string
+          status: Database["public"]["Enums"]["notification_status"]
+          subject: string
+          tenant_id: string
+        }
+        Insert: {
+          body: string
+          error?: string | null
+          event_type: Database["public"]["Enums"]["notification_event_type"]
+          id?: string
+          outbox_id?: string | null
+          recipient_email: string
+          recipient_role?: Database["public"]["Enums"]["app_role"] | null
+          sent_at?: string
+          status: Database["public"]["Enums"]["notification_status"]
+          subject: string
+          tenant_id: string
+        }
+        Update: {
+          body?: string
+          error?: string | null
+          event_type?: Database["public"]["Enums"]["notification_event_type"]
+          id?: string
+          outbox_id?: string | null
+          recipient_email?: string
+          recipient_role?: Database["public"]["Enums"]["app_role"] | null
+          sent_at?: string
+          status?: Database["public"]["Enums"]["notification_status"]
+          subject?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_log_outbox_id_fkey"
+            columns: ["outbox_id"]
+            isOneToOne: false
+            referencedRelation: "notification_outbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_outbox: {
+        Row: {
+          attempts: number
+          created_at: string
+          event_type: Database["public"]["Enums"]["notification_event_type"]
+          id: string
+          payload: Json
+          processed_at: string | null
+          status: Database["public"]["Enums"]["notification_status"]
+          tenant_id: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          event_type: Database["public"]["Enums"]["notification_event_type"]
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          status?: Database["public"]["Enums"]["notification_status"]
+          tenant_id: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          event_type?: Database["public"]["Enums"]["notification_event_type"]
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          status?: Database["public"]["Enums"]["notification_status"]
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_outbox_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_rules: {
+        Row: {
+          created_at: string
+          event_type: Database["public"]["Enums"]["notification_event_type"]
+          id: string
+          is_enabled: boolean
+          recipient_roles: Database["public"]["Enums"]["app_role"][]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_type: Database["public"]["Enums"]["notification_event_type"]
+          id?: string
+          is_enabled?: boolean
+          recipient_roles?: Database["public"]["Enums"]["app_role"][]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_type?: Database["public"]["Enums"]["notification_event_type"]
+          id?: string
+          is_enabled?: boolean
+          recipient_roles?: Database["public"]["Enums"]["app_role"][]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_rules_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_line_modifiers: {
         Row: {
           created_at: string
@@ -1730,6 +1866,17 @@ export type Database = {
       current_branch_id: { Args: never; Returns: string }
       current_tenant_id: { Args: never; Returns: string }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      enqueue_notification: {
+        Args: {
+          p_dedup_key?: string
+          p_dedup_window?: string
+          p_event_type: Database["public"]["Enums"]["notification_event_type"]
+          p_payload: Json
+          p_tenant_id: string
+        }
+        Returns: undefined
+      }
+      enqueue_weekly_cost_reports: { Args: never; Returns: undefined }
       is_manager: { Args: never; Returns: boolean }
       is_owner: { Args: never; Returns: boolean }
     }
@@ -1745,6 +1892,15 @@ export type Database = {
       cash_session_status: "open" | "closed"
       line_discount_kind: "comp" | "percent" | "amount"
       line_discount_status: "pending" | "approved" | "rejected"
+      notification_event_type:
+        | "low_stock"
+        | "negative_stock"
+        | "approval_pending"
+        | "po_approved"
+        | "cash_shortage"
+        | "day_end_summary"
+        | "weekly_cost_report"
+      notification_status: "pending" | "sent" | "failed"
       order_channel: "dine_in" | "takeaway" | "delivery"
       order_line_status:
         | "pending"
@@ -1920,6 +2076,16 @@ export const Constants = {
       cash_session_status: ["open", "closed"],
       line_discount_kind: ["comp", "percent", "amount"],
       line_discount_status: ["pending", "approved", "rejected"],
+      notification_event_type: [
+        "low_stock",
+        "negative_stock",
+        "approval_pending",
+        "po_approved",
+        "cash_shortage",
+        "day_end_summary",
+        "weekly_cost_report",
+      ],
+      notification_status: ["pending", "sent", "failed"],
       order_channel: ["dine_in", "takeaway", "delivery"],
       order_line_status: [
         "pending",

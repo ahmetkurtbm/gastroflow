@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Deno çalışma zamanı — Next.js app'in TS/ESLint kapsamının dışında
+    // (bkz. tsconfig.json exclude), ayrı bir runtime, ayrı kurallar.
+    "supabase/functions/**",
   ]),
   {
     rules: {
