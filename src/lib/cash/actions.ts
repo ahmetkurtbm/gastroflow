@@ -5,10 +5,11 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { compare } from "@/core/money";
+import { compare, toLira } from "@/core/money";
 import { requireAppUser } from "@/lib/auth/current-user";
 import { loadOrderForPayment } from "@/lib/cash/queries";
 import { depleteOrderStock } from "@/lib/inventory/depletion";
+import { fiscalDeviceAdapter } from "@/lib/integrations";
 import { createClient } from "@/lib/supabase/server";
 
 export type ActionState = { error?: string; ok?: boolean };
@@ -114,6 +115,19 @@ export async function recordPayment(
             `Stok düşümü başarısız (adisyon ${input.orderId}):`,
             depletionError,
           );
+        }
+
+        // ÖKC fişi de aynı desende bir YAN ETKİ: gerçek cihaz bağlanana
+        // kadar mock adaptör yalnızca günlüğe yazıyor (bkz.
+        // src/lib/integrations). Başarısız olsa bile ödemeyi geri almıyoruz.
+        try {
+          await fiscalDeviceAdapter.printReceipt({
+            orderId: input.orderId,
+            orderNo: updated.orderNo,
+            totalAmount: toLira(updated.total),
+          });
+        } catch (fiscalError) {
+          console.error(`ÖKC fişi kesilemedi (adisyon ${input.orderId}):`, fiscalError);
         }
       }
     }
