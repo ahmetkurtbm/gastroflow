@@ -163,3 +163,92 @@ export async function recordTransfer(
   revalidatePath("/inventory", "layout");
   return { ok: true };
 }
+
+/**
+ * Fiziksel sayım — körleme: form ekranı mevcut bakiyeyi göstermez, sayan
+ * kişi ne görürse onu yazar. Sunucu tarafında sayılan miktarla sistemdeki
+ * bakiye arasındaki farkı hesaplayıp `count_adjustment` hareketi yazar.
+ *
+ * Boş bırakılan ürünler atlanır (o oturumda sayılmadı demektir — "sayfa
+ * sayfa kaydet" akışını destekler); fark sıfırsa hareket hiç yazılmaz,
+ * ledger'ı anlamsız sıfır kayıtlarla şişirmez.
+ */
+export async function recordCount(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const locationId = z.uuid().parse(formData.get("locationId"));
+    const user = await requireAppUser();
+    const supabase = await createClient();
+
+    const { data: location } = await supabase
+      .from("stock_locations")
+      .select("id, branch_id")
+      .eq("id", locationId)
+      .maybeSingle();
+    if (!location) return { error: "Lokasyon bulunamadı." };
+
+    const { data: items } = await supabase
+      .from("inventory_items")
+      .select("id")
+      .eq("is_active", true);
+    if (!items || items.length === 0) return { error: "Tanımlı hammadde yok." };
+
+    const { data: balances } = await supabase
+      .from("v_stock_balance")
+      .select("inventory_item_id, balance")
+      .eq("location_id", locationId);
+    const balanceByItem = new Map(
+      (balances ?? []).map((b) => [b.inventory_item_id, Number(b.balance)]),
+    );
+
+    const rows: {
+      tenant_id: string;
+      branch_id: string;
+      location_id: string;
+      inventory_item_id: string;
+      movement_type: "count_adjustment";
+      quantity: number;
+      note: string;
+      created_by: string;
+    }[] = [];
+
+    for (const item of items) {
+      const raw = formData.get(`qty_${item.id}`);
+      if (raw === null || raw === "") continue;
+
+      const counted = Number(raw);
+      if (!Number.isFinite(counted) || counted < 0) {
+        return { error: "Sayım miktarları negatif olamaz." };
+      }
+
+      const current = balanceByItem.get(item.id) ?? 0;
+      const delta = counted - current;
+      if (Math.abs(delta) < 1e-9) continue;
+
+      rows.push({
+        tenant_id: user.tenantId,
+        branch_id: location.branch_id,
+        location_id: locationId,
+        inventory_item_id: item.id,
+        movement_type: "count_adjustment",
+        quantity: delta,
+        note: `Sayım: sistemde ${current}, sayılan ${counted}`,
+        created_by: user.userId,
+      });
+    }
+
+    if (rows.length === 0) {
+      return { error: "Kaydedilecek fark yok — girilen değerler boş ya da sistemdeki bakiyeyle aynı." };
+    }
+
+    const { error } = await supabase.from("stock_movements").insert(rows);
+    if (error) return { error: error.message };
+  } catch (error) {
+    return fail(error);
+  }
+
+  revalidatePath("/inventory", "layout");
+  return { ok: true };
+}

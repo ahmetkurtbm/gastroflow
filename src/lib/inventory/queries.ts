@@ -243,3 +243,75 @@ export async function loadRecentMovements(limit = 50): Promise<MovementRow[]> {
     createdAt: row.created_at,
   }));
 }
+
+export type VarianceRow = {
+  itemId: string;
+  itemName: string;
+  baseUnit: string;
+  /** Reçeteye göre satıştan düşülmesi gereken miktar (sale_out toplamı, mutlak). */
+  theoreticalUsage: number;
+  /** Sebep kodlu olarak zaten kayıtlı zayiat (mutlak). */
+  loggedWaste: number;
+  /** Sayımda bulunan, satış/zayiatla açıklanamayan fark (işaretli: eksi = kayıp). */
+  countVariance: number;
+  /** countVariance / theoreticalUsage · 100 — teorik tüketime kıyasla büyüklük. */
+  variancePercent: number | null;
+};
+
+/**
+ * Teorik vs fiili varyans raporu.
+ *
+ * "Teorik" zaten `sale_out` hareketlerinde yaşıyor — adisyon kapanınca
+ * reçeteye göre otomatik yazılıyor (bkz. `depleteOrderStock`). "Fiili sapma"
+ * da ayrıca hesaplanan bir şey değil: `count_adjustment` TAM OLARAK budur —
+ * fiziksel sayımın, satış+zayiat+transferden sonra ledger'ın öngördüğü
+ * bakiyeyle farkı. İki ayrı hesap yapıp birbirini tutmasını ummak yerine,
+ * ledger'ın kendi kaydını doğrudan gösteriyoruz.
+ */
+export async function loadVarianceReport(days = 30): Promise<VarianceRow[]> {
+  const supabase = await createClient();
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+  const [itemsResult, movementsResult] = await Promise.all([
+    supabase.from("inventory_items").select("id, name, base_unit").eq("is_active", true).order("name"),
+    supabase
+      .from("stock_movements")
+      .select("inventory_item_id, movement_type, quantity")
+      .in("movement_type", ["sale_out", "waste", "count_adjustment"])
+      .gte("created_at", since),
+  ]);
+
+  const byItem = new Map<string, { theoretical: number; waste: number; countVar: number }>();
+  for (const m of movementsResult.data ?? []) {
+    const entry = byItem.get(m.inventory_item_id) ?? { theoretical: 0, waste: 0, countVar: 0 };
+    const qty = toNumber(m.quantity);
+    if (m.movement_type === "sale_out") entry.theoretical += Math.abs(qty);
+    else if (m.movement_type === "waste") entry.waste += Math.abs(qty);
+    else if (m.movement_type === "count_adjustment") entry.countVar += qty;
+    byItem.set(m.inventory_item_id, entry);
+  }
+
+  const rows: VarianceRow[] = [];
+  for (const item of itemsResult.data ?? []) {
+    const entry = byItem.get(item.id);
+    if (!entry) continue; // dönemde hiç hareketi yoksa raporu şişirmesin
+
+    rows.push({
+      itemId: item.id,
+      itemName: item.name,
+      baseUnit: item.base_unit,
+      theoreticalUsage: entry.theoretical,
+      loggedWaste: entry.waste,
+      countVariance: entry.countVar,
+      variancePercent: entry.theoretical > 0 ? (entry.countVar / entry.theoretical) * 100 : null,
+    });
+  }
+
+  // Yüzdesi olmayanlar (hiç satışı yok ama sayım farkı var) sona; kalanlar
+  // mutlak yüzdeye göre — en sorunlu ürün en üstte olsun.
+  return rows.sort((a, b) => {
+    if (a.variancePercent === null) return 1;
+    if (b.variancePercent === null) return -1;
+    return Math.abs(b.variancePercent) - Math.abs(a.variancePercent);
+  });
+}

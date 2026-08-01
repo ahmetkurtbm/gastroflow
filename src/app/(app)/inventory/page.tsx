@@ -42,7 +42,19 @@ export default async function InventoryPage() {
             reçeteye göre otomatik yazılır.
           </p>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+          <Link
+            href="/inventory/varyans"
+            className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:bg-surface-sunken"
+          >
+            Varyans raporu
+          </Link>
+          <Link
+            href="/inventory/sayim"
+            className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:bg-surface-sunken"
+          >
+            Sayım
+          </Link>
           <Link
             href="/inventory/transfer"
             className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:bg-surface-sunken"
@@ -165,11 +177,6 @@ export default async function InventoryPage() {
           </div>
         )}
       </section>
-
-      <p className="mt-4 text-xs text-ink-muted">
-        Sayım ekranı ve teorik/fiili varyans raporu sonraki bir aşamada
-        eklenecek.
-      </p>
     </div>
   );
 }
