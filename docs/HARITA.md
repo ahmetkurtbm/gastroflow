@@ -484,3 +484,34 @@ Faz 6 (Raporlar + Patron Mobil) şunlara dayanacak:
 - **Zaten hazır altyapı:** bildirim motoru (Faz 5) — "yüksek varyans"
   gibi rapor-tetiklemeli bildirimler için `enqueue_notification()`
   doğrudan kullanılabilir, yeni bir mekanizma gerekmiyor
+
+---
+
+## 11. Faz 7 — Sertleştirme notları
+
+**RLS politika hijyeni** (`supabase/migrations/20260801000008_rls_policy_hygiene.sql`):
+24 tabloda tek `FOR ALL` yazma politikası, ayrı `SELECT` politikasıyla
+çakışıp Supabase advisor'da "multiple permissive policies" (performans WARN)
+üretiyordu. Her tablo `_insert`/`_update`/`_delete` olarak üçe bölündü —
+davranış birebir korunarak (mevcut USING/WITH CHECK ifadeleri `pg_policies`'ten
+alınarak). 11 pgTAP test dosyasının tamamı canlı projede yeniden çalıştırılıp
+regresyon olmadığı doğrulandı.
+
+**Yük testi** (`scripts/load-test.mjs`, `npm run load-test`): Next.js
+katmanını atlayıp doğrudan PostgREST'e karşı eşzamanlı POS trafiği (N garson
+× M tur: adisyon aç → ürün ekle → mutfağa gönder → öde → kapat) simüle eder.
+Kendi tek kullanımlık kiracısını yaratır, sonunda siler — paylaşımlı canlı
+DB'yi kirletmez (pgTAP testlerindeki bilinen sorunun aksine).
+
+İlk çalıştırmada **gerçek bir yarış koşulu buldu**: `orders_assign_number()`
+tetikleyicisi (`SELECT MAX(order_no)+1` → `INSERT`) klasik bir TOCTOU
+yarışıydı — 15 garson aynı anda farklı masalarda adisyon açınca %40 oranında
+`23505` (unique_violation) üretiyordu. Daha vahimi: `openTable` eylemi bu
+hatayı her zaman "client_key zaten gönderilmiş" sanıp kullanıcıyı sessizce
+POS ekranına yönlendiriyordu — order_no çakışmasında ise adisyon **hiç
+oluşmamış** oluyordu, garson boş bir ekrana düşüyordu.
+
+Düzeltme (`20260802000001_fix_order_number_race.sql`): numaralandırma artık
+şube başına bir `pg_advisory_xact_lock` ile serileştiriliyor — transaction
+sonunda otomatik serbest kalır, ek tablo/satır kilidi ya da yetki gerektirmez.
+Düzeltme sonrası yük testi: 60/60 adisyon, 0 çakışma, %0 hata oranı.
