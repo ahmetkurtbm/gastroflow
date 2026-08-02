@@ -1,10 +1,29 @@
 import Link from "next/link";
 
 import { AppNav } from "@/components/app-nav";
-import { ROLE_LABEL, navFor } from "@/lib/auth/access";
+import { navFor } from "@/lib/auth/access";
 import { signOut } from "@/lib/auth/actions";
 import { requireAppUser } from "@/lib/auth/current-user";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
+import { getServerDictionary } from "@/lib/i18n/server";
+import { LanguageSwitcher } from "@/lib/i18n/language-switcher";
+import { I18nProvider } from "@/lib/i18n/provider";
 import { createClient } from "@/lib/supabase/server";
+
+const NAV_KEY_BY_HREF: Record<string, keyof Dictionary["nav"]> = {
+  "/pos": "pos",
+  "/orders": "orders",
+  "/kds": "kds",
+  "/cash": "cash",
+  "/inventory": "inventory",
+  "/recipes": "recipes",
+  "/purchasing": "purchasing",
+  "/reports": "reports",
+  "/m": "m",
+  "/approvals": "approvals",
+  "/audit": "audit",
+  "/settings": "settings",
+};
 
 /**
  * Oturum açmış kullanıcıların kabuğu.
@@ -18,6 +37,7 @@ export default async function AppLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const user = await requireAppUser();
   const supabase = await createClient();
+  const { locale, dict } = await getServerDictionary();
 
   const [tenantResult, branchResult, profileResult] = await Promise.all([
     supabase.from("tenants").select("name").maybeSingle(),
@@ -27,46 +47,54 @@ export default async function AppLayout({
     supabase.from("profiles").select("full_name").eq("id", user.userId).maybeSingle(),
   ]);
 
-  const tenantName = tenantResult.data?.name ?? "İşletme";
+  const tenantName = tenantResult.data?.name ?? dict.shell.business;
   const branchName = branchResult.data?.name ?? null;
-  const fullName = profileResult.data?.full_name ?? "Kullanıcı";
+  const fullName = profileResult.data?.full_name ?? "—";
+
+  const navItems = navFor(user.role).map((item) => ({
+    ...item,
+    label: dict.nav[NAV_KEY_BY_HREF[item.href]] ?? item.label,
+  }));
 
   return (
-    <div className="flex min-h-full flex-col md:flex-row">
-      <aside className="border-b border-line bg-surface-raised md:w-56 md:shrink-0 md:border-r md:border-b-0">
-        <div className="flex items-center justify-between px-4 py-3 md:block md:px-4 md:py-4">
-          <Link href="/" className="block">
-            <span className="text-lg font-bold tracking-tight text-ink">
-              Gastro<span className="text-brand-600">Flow</span>
-            </span>
-          </Link>
-          <p className="truncate text-xs text-ink-muted md:mt-1">
-            {tenantName}
-            {branchName ? ` · ${branchName}` : ""}
-          </p>
-        </div>
-
-        <AppNav items={navFor(user.role)} />
-      </aside>
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-end gap-3 border-b border-line px-4 py-3">
-          <div className="text-right leading-tight">
-            <p className="text-sm font-medium text-ink">{fullName}</p>
-            <p className="text-xs text-ink-muted">{ROLE_LABEL[user.role]}</p>
+    <I18nProvider locale={locale} dict={dict}>
+      <div className="flex min-h-full flex-col md:flex-row">
+        <aside className="border-b border-line bg-surface-raised md:w-56 md:shrink-0 md:border-r md:border-b-0">
+          <div className="flex items-center justify-between px-4 py-3 md:block md:px-4 md:py-4">
+            <Link href="/" className="block">
+              <span className="text-lg font-bold tracking-tight text-ink">
+                Gastro<span className="text-brand-600">Flow</span>
+              </span>
+            </Link>
+            <p className="truncate text-xs text-ink-muted md:mt-1">
+              {tenantName}
+              {branchName ? ` · ${branchName}` : ""}
+            </p>
           </div>
-          <form action={signOut}>
-            <button
-              type="submit"
-              className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink"
-            >
-              Çıkış
-            </button>
-          </form>
-        </header>
 
-        <main className="min-w-0 flex-1 p-4 md:p-6">{children}</main>
+          <AppNav items={navItems} />
+        </aside>
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="flex items-center justify-end gap-3 border-b border-line px-4 py-3">
+            <LanguageSwitcher locale={locale} />
+            <div className="text-right leading-tight">
+              <p className="text-sm font-medium text-ink">{fullName}</p>
+              <p className="text-xs text-ink-muted">{dict.role[user.role]}</p>
+            </div>
+            <form action={signOut}>
+              <button
+                type="submit"
+                className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink"
+              >
+                {dict.shell.signOut}
+              </button>
+            </form>
+          </header>
+
+          <main className="min-w-0 flex-1 p-4 md:p-6">{children}</main>
+        </div>
       </div>
-    </div>
+    </I18nProvider>
   );
 }

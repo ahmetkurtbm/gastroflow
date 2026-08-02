@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 
 import { Field, FormError, Select, SubmitButton, TextInput } from "@/components/ui/form";
 import { recordPayment, type ActionState } from "@/lib/cash/actions";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
 
 const initial: ActionState = {};
 
@@ -18,10 +19,12 @@ export function PaymentForm({
   orderId,
   remainingLira,
   splitSuggestions,
+  dict,
 }: {
   orderId: string;
   remainingLira: number;
   splitSuggestions: { parts: number; shareLira: number }[];
+  dict: Dictionary["cash"];
 }) {
   const [state, action] = useActionState(recordPayment, initial);
   const [amount, setAmount] = useState(remainingLira.toFixed(2));
@@ -39,7 +42,7 @@ export function PaymentForm({
               onClick={() => setAmount(remainingLira.toFixed(2))}
               className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink hover:bg-surface-sunken"
             >
-              Tamamı
+              {dict.fullAmount}
             </button>
             {splitSuggestions.map(({ parts, shareLira }) => (
               <button
@@ -86,7 +89,7 @@ export function PaymentForm({
 
       <FormError message={state.error} />
 
-      <SubmitButton>Ödemeyi al</SubmitButton>
+      <SubmitButton>{dict.payButton}</SubmitButton>
     </form>
   );
 }

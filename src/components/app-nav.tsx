@@ -3,15 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import type { NavItem } from "@/lib/auth/access";
-
 /**
  * Kenar çubuğu menüsü.
  *
- * Maddeler sunucuda role göre süzülüp geliyor (bkz. navFor). Buradaki tek iş
- * aktif olanı işaretlemek — bu yüzden client bileşeni.
+ * Maddeler sunucuda role göre süzülüp geliyor (bkz. navFor) ve aktif dile
+ * çevrilmiş olarak geliyor. Buradaki tek iş aktif olanı işaretlemek — bu
+ * yüzden client bileşeni.
  */
-export function AppNav({ items }: { items: readonly NavItem[] }) {
+export function AppNav({ items }: { items: readonly { href: string; label: string }[] }) {
   const pathname = usePathname();
 
   return (

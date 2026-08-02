@@ -3,10 +3,11 @@
 import { useActionState } from "react";
 
 import { signIn, type LoginState } from "@/lib/auth/actions";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
 
 const initialState: LoginState = {};
 
-export function LoginForm() {
+export function LoginForm({ dict }: { dict: Dictionary["login"] }) {
   const [state, formAction, pending] = useActionState(signIn, initialState);
 
   return (
@@ -16,7 +17,7 @@ export function LoginForm() {
           htmlFor="email"
           className="block text-sm font-medium text-ink-muted"
         >
-          E-posta
+          {dict.email}
         </label>
         <input
           id="email"
@@ -35,7 +36,7 @@ export function LoginForm() {
           htmlFor="password"
           className="block text-sm font-medium text-ink-muted"
         >
-          Şifre
+          {dict.password}
         </label>
         <input
           id="password"
@@ -62,7 +63,7 @@ export function LoginForm() {
         disabled={pending}
         className="w-full rounded-lg bg-brand-600 px-4 py-3 text-base font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {pending ? "Giriş yapılıyor…" : "Giriş yap"}
+        {pending ? dict.submitting : dict.submit}
       </button>
     </form>
   );

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 
 import type { OptimisticLine } from "@/lib/offline/use-offline-order";
+import { useI18n } from "@/lib/i18n/provider";
 import { removeOrderLine } from "@/lib/orders/actions";
 import { lineTotal, type OrderLineView, type OrderView } from "@/lib/orders/types";
 
@@ -45,6 +46,7 @@ export function Cart({
   onSendToKitchen: () => void;
   onCancelOptimistic: (id: string) => void;
 }) {
+  const { dict } = useI18n();
   const [pending, startTransition] = useTransition();
   const [discountLineId, setDiscountLineId] = useState<string | null>(null);
   const pendingCount = order.lines.filter((l) => l.status === "pending").length;
@@ -79,7 +81,7 @@ export function Cart({
       <div className="flex-1 overflow-y-auto">
         {order.lines.length === 0 && optimisticLines.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-ink-muted">
-            Sepet boş. Soldan ürün seç.
+            {dict.pos.cartEmpty}
           </p>
         ) : (
           <ul className="divide-y divide-line">
@@ -182,7 +184,7 @@ export function Cart({
 
       <div className="border-t border-line px-4 py-3">
         <div className="mb-3 flex items-center justify-between">
-          <span className="text-sm text-ink-muted">Toplam</span>
+          <span className="text-sm text-ink-muted">{dict.pos.total}</span>
           <span className="text-lg font-bold tabular-nums text-ink">
             {formatLira(total)}
           </span>
@@ -195,8 +197,8 @@ export function Cart({
           className="w-full rounded-lg bg-brand-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {pendingCount + optimisticLines.length > 0
-            ? `Mutfağa gönder (${pendingCount + optimisticLines.length})`
-            : "Gönderilecek ürün yok"}
+            ? `${dict.pos.sendToKitchen} (${pendingCount + optimisticLines.length})`
+            : dict.pos.nothingToSend}
         </button>
       </div>
 

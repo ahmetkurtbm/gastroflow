@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { useOfflineOrder } from "@/lib/offline/use-offline-order";
+import { useI18n } from "@/lib/i18n/provider";
 import type { MenuCategory, OrderView } from "@/lib/orders/types";
 
 import { AddItemButton } from "./add-item-button";
@@ -23,6 +24,7 @@ export function OrderScreen({
   tenantId: string;
   userId: string;
 }) {
+  const { dict } = useI18n();
   const {
     isOnline,
     queueCount,
@@ -54,12 +56,12 @@ export function OrderScreen({
     <div className="flex h-[calc(100vh-8rem)] flex-col md:flex-row md:gap-4">
       <div className="flex-1 overflow-y-auto md:pr-2">
         <Link href="/pos" className="text-sm text-ink-muted hover:text-ink">
-          ← Salon
+          {dict.pos.backToFloor}
         </Link>
 
         {categories.length === 0 ? (
           <p className="mt-6 rounded-xl border border-line bg-surface-raised px-4 py-8 text-center text-sm text-ink-muted">
-            Satılabilir ürün yok. Reçeteler → menü ürününe fiyat tanımla.
+            {dict.pos.noItems}
           </p>
         ) : (
           <div className="mt-4 space-y-6">

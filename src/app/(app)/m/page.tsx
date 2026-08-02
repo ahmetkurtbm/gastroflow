@@ -4,6 +4,7 @@ import Link from "next/link";
 import { PoDecisionButtons } from "@/app/(app)/purchasing/[poId]/po-actions";
 import { formatQuantity } from "@/core/units";
 import { loadLatestCashSession } from "@/lib/cash/queries";
+import { getServerDictionary } from "@/lib/i18n/server";
 import { loadLowStock } from "@/lib/inventory/queries";
 import { loadRecentAlerts, type NotificationEventType } from "@/lib/notifications/queries";
 import { loadPendingDiscounts } from "@/lib/orders/queries";
@@ -48,20 +49,21 @@ const timeFormatter = new Intl.DateTimeFormat("tr-TR", {
 });
 
 export default async function MobilePanelPage() {
-  const [revenue, discountRequests, poRequests, lowStock, alerts, cashSession] = await Promise.all([
+  const [revenue, discountRequests, poRequests, lowStock, alerts, cashSession, { dict }] = await Promise.all([
     loadTodayRevenue(),
     loadPendingDiscounts(),
     loadPendingPurchaseOrders(),
     loadLowStock(),
     loadRecentAlerts(15),
     loadLatestCashSession(),
+    getServerDictionary(),
   ]);
 
   const pendingCount = discountRequests.length + poRequests.length;
 
   return (
     <div className="mx-auto max-w-md space-y-4">
-      <h1 className="text-2xl font-bold tracking-tight text-ink">Patron Paneli</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-ink">{dict.m.title}</h1>
 
       {/* Canlı ciro */}
       <section className="rounded-xl border border-line bg-surface-raised p-4">

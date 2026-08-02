@@ -536,3 +536,18 @@ hâlâ `src/lib/offline/queue.ts`'nin işi, bu ikisi birbirini tamamlıyor:
 sayfa service worker'dan, mutasyon IndexedDB kuyruğundan gelir. Kanıt:
 `e2e/offline-cold-start.spec.ts` (aç → önbellekle → çevrimdışına geç →
 tam sayfa yenile → hâlâ render olduğunu doğrula).
+
+**Çok dilli arayüz (TR/EN)** (`src/lib/i18n/`): route yapısını değiştirmeyen
+(yani `[locale]` segmenti YOK, `e2e/`, `proxy.ts`, mevcut tüm testler
+korundu) çerez bazlı, bağımlılıksız (next-intl vb. YOK) bir sözlük sistemi.
+`gf_locale` çerezi (`setLocale` Server Action'ı yazar) hangi dilin
+kullanılacağını belirler; sunucu bileşenleri `getServerDictionary()` ile,
+client bileşenleri `useI18n()` (AppLayout'ta kurulan `I18nProvider`
+context'i) ile aynı sözlüğü okur — ikisi de aynı sunucu-okunan çerezden
+geldiği için hydration uyuşmazlığı riski yok. Kapsam bilinçli olarak sınırlı:
+kabuk (menü/roller/çıkış), giriş ekranı, POS/salon, sipariş ekranı (sepet),
+kasa/ödeme ekranı ve patron paneli başlığı çevrildi; raporlar, satın alma,
+reçeteler, ayarlar, denetim ve mutfak ekranının gövdesi henüz `dict`e
+bağlanmadı (bkz. `src/lib/i18n/dictionaries.ts` başındaki not) — İngilizce
+seçilse bile o kısımlar Türkçe görünür, bu bir hata değil bilinen sınır.
+Kanıt: `e2e/language-switch.spec.ts`.

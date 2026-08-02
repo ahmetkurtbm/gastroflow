@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { allocate, formatMoney, isZero, money, toLira } from "@/core/money";
 import { requireAppUser } from "@/lib/auth/current-user";
 import { loadOrderForPayment } from "@/lib/cash/queries";
+import { getServerDictionary } from "@/lib/i18n/server";
 
 import { PaymentForm } from "./payment-form";
 
@@ -25,7 +26,7 @@ export default async function PaymentPage({
   const { orderId } = await params;
   await requireAppUser();
 
-  const order = await loadOrderForPayment(orderId);
+  const [order, { dict }] = await Promise.all([loadOrderForPayment(orderId), getServerDictionary()]);
   if (!order) notFound();
 
   const isClosed = order.status !== "open";
@@ -42,7 +43,7 @@ export default async function PaymentPage({
   return (
     <div className="mx-auto max-w-2xl">
       <Link href="/cash" className="text-sm text-ink-muted hover:text-ink">
-        ← Kasa
+        {dict.cash.backToCash}
       </Link>
 
       <div className="mt-3 mb-6">
@@ -59,7 +60,7 @@ export default async function PaymentPage({
 
       <section className="rounded-xl border border-line bg-surface-raised">
         <h2 className="border-b border-line px-4 py-3 text-sm font-semibold text-ink">
-          Ürünler
+          {dict.cash.products}
         </h2>
         <ul className="divide-y divide-line">
           {order.lines.map((line, index) => {
@@ -137,12 +138,12 @@ export default async function PaymentPage({
 
       {isClosed ? (
         <p className="mt-4 rounded-xl border border-ok/30 bg-ok/10 px-4 py-3 text-center text-sm text-ok">
-          Bu adisyon tamamen ödendi ve kapatıldı.
+          {dict.cash.closed}
         </p>
       ) : (
         <section className="mt-4 rounded-xl border border-line bg-surface-raised p-5">
           <div className="mb-4 flex items-center justify-between">
-            <span className="text-sm text-ink-muted">Kalan bakiye</span>
+            <span className="text-sm text-ink-muted">{dict.cash.remaining}</span>
             <span className="text-xl font-bold tabular-nums text-ink">
               {formatMoney(order.remaining)}
             </span>
@@ -151,6 +152,7 @@ export default async function PaymentPage({
             orderId={order.id}
             remainingLira={toLira(order.remaining)}
             splitSuggestions={splitSuggestions}
+            dict={dict.cash}
           />
         </section>
       )}
