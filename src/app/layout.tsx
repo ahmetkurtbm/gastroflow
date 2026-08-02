@@ -3,6 +3,8 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 
 import "./globals.css";
 
+import { RegisterServiceWorker } from "./register-sw";
+
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin", "latin-ext"], // latin-ext: Türkçe ğ, ş, ı, İ
@@ -23,6 +25,8 @@ export const metadata: Metadata = {
   description: "Restoran yönetim sistemi: sipariş, stok, maliyet ve tedarik.",
   // Operasyon uygulaması; arama motorunda görünmesinin bir anlamı yok.
   robots: { index: false, follow: false },
+  manifest: "/manifest.webmanifest",
+  icons: { icon: "/icon.svg" },
 };
 
 export const viewport: Viewport = {
@@ -41,7 +45,10 @@ export default function RootLayout({
       lang="tr"
       className={`${inter.variable} ${mono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col font-sans">{children}</body>
+      <body className="flex min-h-full flex-col font-sans">
+        <RegisterServiceWorker />
+        {children}
+      </body>
     </html>
   );
 }

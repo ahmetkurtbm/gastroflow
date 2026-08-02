@@ -1,0 +1,15 @@
+{
+  "name": "GastroFlow",
+  "short_name": "GastroFlow",
+  "description": "Restoran yönetim sistemi: sipariş, stok, maliyet ve tedarik.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f0d0b",
+  "theme_color": "#0f0d0b",
+  "lang": "tr",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

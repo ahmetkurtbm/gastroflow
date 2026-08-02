@@ -56,11 +56,19 @@ Bunlar tercih değil, projenin güvenlik iddiasının dayandığı kurallar.
 kesintisine dayanıklılık sağlar: ürün ekleme ve mutfağa gönderme, bağlantı
 kesikken IndexedDB'de kuyruğa alınır, `client_key` idempotency'siyle senkronlanır.
 
-**Kapsam DIŞI:** Yeni bir masa açmak (`openTable`) veya herhangi bir yeni sayfaya
-gitmek offline çalışmaz. Sebep mimari: bu bir Server Component uygulaması,
-her navigasyon sunucudan RSC verisi çekmeyi gerektirir; service worker
-(app-shell önbellekleme) olmadan hiçbir navigasyon offline çalışamaz. Tam
-"soğuk başlangıç" offline desteği ayrı ve daha büyük bir iş.
+**Kapsam DIŞI:** Yeni bir masa açmak (`openTable`) veya HİÇ ziyaret edilmemiş
+bir sayfaya gitmek offline çalışmaz. Sebep mimari: bu bir Server Component
+uygulaması, her navigasyon sunucudan RSC verisi çekmeyi gerektirir.
+
+**Faz 7 güncellemesi — `public/sw.js`:** app-shell service worker'ı bu
+sınırın bir kısmını kapattı. Bir sayfa (ör. `/pos/masa/[tableId]`) daha önce
+ONLINE ziyaret edildiyse, service worker o isteği URL'ye göre önbelleğe alır;
+sonraki SOĞUK BAŞLANGIÇTA (sekme kapanıp açılsa, tam sayfa yenilense bile)
+çevrimdışıyken de önbellekten render edilir. Kanıt: `e2e/offline-cold-start.spec.ts`.
+Hâlâ geçerli sınır: hiç ziyaret edilmemiş bir URL'ye offline gitmek çalışmaz
+(`public/offline.html`'e düşer); Server Action'lar (POST) service worker
+tarafından hiç önbelleklenmez — mutasyonların offline dayanıklılığı hâlâ
+yalnızca `src/lib/offline/queue.ts`'nin işi.
 
 ## Test ortamı notu — tarayıcı sekmesi "yapışkanlığı"
 

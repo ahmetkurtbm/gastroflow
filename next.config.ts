@@ -34,7 +34,19 @@ const nextConfig: NextConfig = {
   typescript: { ignoreBuildErrors: false },
 
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      {
+        // Service worker dosyası her zaman yeniden doğrulanmalı — aksi hâlde
+        // tarayıcı eski sürümü önbellekten sunmaya devam eder ve yeni bir
+        // dağıtım hiçbir zaman kullanıcıya ulaşmaz.
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache" },
+          { key: "Service-Worker-Allowed", value: "/" },
+        ],
+      },
+    ];
   },
 };
 

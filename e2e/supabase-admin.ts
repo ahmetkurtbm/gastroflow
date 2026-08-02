@@ -20,6 +20,11 @@ export type TestTenant = {
   branchId: string;
   tableId: string;
   tableName: string;
+  // İkinci, bağımsız bir masa: farklı spec dosyaları aynı kiracıyı paylaşıyor
+  // (global-setup çalışma başına bir kez çalışır) — bir testin adisyonu açık
+  // bırakması diğerinin "boş masa" varsayımını bozmasın diye ayrı masa.
+  secondaryTableId: string;
+  secondaryTableName: string;
   menuItemId: string;
   userId: string;
   email: string;
@@ -81,13 +86,21 @@ export async function createTestTenant(admin: ReturnType<typeof adminClient>, la
     .single();
   if (areaError) throw new Error(`area: ${areaError.message}`);
 
-  const tableName = `E2E-${label}`;
-  const { data: table, error: tableError } = await admin
+  // "-A"/"-B" (bir ismin diğerinin öneki OLMAMASI için) — regex ile isme göre
+  // arama yapan Playwright locator'ları alt dizeyle eşleşir; "masa-1" / "masa-1-2"
+  // gibi isimler yanlışlıkla iki düğmeyi birden eşleştirip strict-mode hatası verirdi.
+  const tableName = `E2E-${label}-A`;
+  const secondaryTableName = `E2E-${label}-B`;
+  const { data: tables, error: tableError } = await admin
     .from("tables")
-    .insert({ tenant_id: tenant.id, branch_id: branch.id, area_id: area.id, name: tableName })
-    .select("id")
-    .single();
+    .insert([
+      { tenant_id: tenant.id, branch_id: branch.id, area_id: area.id, name: tableName },
+      { tenant_id: tenant.id, branch_id: branch.id, area_id: area.id, name: secondaryTableName },
+    ])
+    .select("id, name");
   if (tableError) throw new Error(`table: ${tableError.message}`);
+  const table = tables.find((t) => t.name === tableName)!;
+  const secondaryTable = tables.find((t) => t.name === secondaryTableName)!;
 
   const { data: category, error: categoryError } = await admin
     .from("categories")
@@ -121,6 +134,8 @@ export async function createTestTenant(admin: ReturnType<typeof adminClient>, la
     branchId: branch.id,
     tableId: table.id,
     tableName,
+    secondaryTableId: secondaryTable.id,
+    secondaryTableName,
     menuItemId: menuItem.id,
     userId,
     email,

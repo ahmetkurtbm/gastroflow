@@ -35,7 +35,10 @@ test("adisyon: masa aç → ürün ekle → mutfağa gönder → öde → kapat"
   await expect(page.getByText("Mutfakta")).toBeVisible({ timeout: 10_000 });
 
   await page.goto("/cash");
-  await page.locator('a[href^="/cash/"]').first().click();
+  // `.first()` yerine masa adına göre seçiyoruz: offline-cold-start.spec.ts
+  // aynı kiracıda ikinci bir masada ödenmemiş bir adisyon bırakıyor (bkz.
+  // supabase-admin.ts secondaryTableName) — kasa listesinde ikisi de görünür.
+  await page.getByRole("link", { name: new RegExp(orderFlow.tableName) }).click();
 
   await expect(page).toHaveURL(/\/cash\//);
   await page.getByRole("button", { name: "Tamamı" }).click();

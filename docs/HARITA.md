@@ -515,3 +515,24 @@ Düzeltme (`20260802000001_fix_order_number_race.sql`): numaralandırma artık
 şube başına bir `pg_advisory_xact_lock` ile serileştiriliyor — transaction
 sonunda otomatik serbest kalır, ek tablo/satır kilidi ya da yetki gerektirmez.
 Düzeltme sonrası yük testi: 60/60 adisyon, 0 çakışma, %0 hata oranı.
+
+**Playwright e2e** (`e2e/`, `npm run test:e2e`): pgTAP'ın kanıtladığı RLS
+davranışının gerçek tarayıcıda/gerçek HTTP isteğinde de geçerli olduğunu
+doğrulayan bağımsız bir katman. `global-setup.ts` her çalıştırmada iki
+bağımsız tek-kullanımlık kiracı kurar (`global-teardown.ts` sonunda siler);
+üç senaryo: adisyon yaşam döngüsü (masa aç→ürün ekle→mutfağa gönder→öde→kapat),
+kiracı izolasyonu (bir işletme diğerinin masasını salon ekranında göremez),
+ve PWA soğuk-başlangıç offline (aşağıya bak). Next dev sunucusu port 3100'de
+çalışır (3000 bu makinede başka bir yerel serviste kullanılıyor).
+
+**PWA app-shell / service worker** (`public/sw.js`, `public/manifest.webmanifest`):
+"Soğuk başlangıç" offline desteğinin bir kısmını kapatıyor — bkz. AGENTS.md
+"Offline kuyruk — kapsam sınırı" güncellemesi. Strateji: `_next/static/*`
+(içerik-adresli, değişmez) cache-first; sayfa navigasyonları ve RSC veri
+istekleri ağ-öncelikli-önbellek-yedekli (önce ağ, başarısız olursa daha önce
+aynı URL'den önbelleğe yazılmış yanıt, o da yoksa `public/offline.html`).
+Server Action'lar (POST) hiç dokunulmuyor — offline mutasyon dayanıklılığı
+hâlâ `src/lib/offline/queue.ts`'nin işi, bu ikisi birbirini tamamlıyor:
+sayfa service worker'dan, mutasyon IndexedDB kuyruğundan gelir. Kanıt:
+`e2e/offline-cold-start.spec.ts` (aç → önbellekle → çevrimdışına geç →
+tam sayfa yenile → hâlâ render olduğunu doğrula).

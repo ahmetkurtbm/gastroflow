@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bağlantı yok · GastroFlow</title>
+  <style>
+    body {
+      margin: 0;
+      display: flex;
+      min-height: 100vh;
+      align-items: center;
+      justify-content: center;
+      background: #0f0d0b;
+      color: #f5f0eb;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      text-align: center;
+      padding: 1.5rem;
+    }
+    div { max-width: 22rem; }
+    h1 { font-size: 1.25rem; margin: 0 0 0.5rem; }
+    p { margin: 0 0 1.25rem; color: #b8b0a6; font-size: 0.9rem; line-height: 1.5; }
+    button {
+      border: none;
+      border-radius: 0.5rem;
+      padding: 0.65rem 1.25rem;
+      background: #c2540d;
+      color: white;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div>
+    <h1>Bu sayfa daha önce açılmamış</h1>
+    <p>
+      İnternet bağlantısı yok ve bu ekran henüz önbelleğe alınmamış. Daha önce
+      açtığın bir sipariş ekranına dönmeyi dene, ya da bağlantı gelince tekrar
+      dene.
+    </p>
+    <button onclick="location.reload()">Tekrar dene</button>
+  </div>
+</body>
+</html>
