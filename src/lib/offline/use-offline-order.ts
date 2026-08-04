@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -21,6 +21,31 @@ export type OptimisticLine = {
 };
 
 /**
+ * `navigator.onLine`'a hydration-güvenli erişim.
+ *
+ * Sunucuda `navigator` yok; istemcide de mount ANINDA gerçek değeri okumak
+ * sunucunun ürettiği HTML'den (her zaman "çevrimiçi" varsayar) farklı çıkıp
+ * React hydration uyuşmazlığı üretebilirdi. `useSyncExternalStore` bunun için
+ * var: `getServerSnapshot` sunucuyla birebir aynı değeri (`true`) döner,
+ * gerçek değer yalnızca hydration TAMAMLANDIKTAN sonraki bir render'da
+ * `getSnapshot`'tan okunur.
+ */
+function subscribeToOnlineStatus(callback: () => void) {
+  window.addEventListener("online", callback);
+  window.addEventListener("offline", callback);
+  return () => {
+    window.removeEventListener("online", callback);
+    window.removeEventListener("offline", callback);
+  };
+}
+function getOnlineSnapshot() {
+  return navigator.onLine;
+}
+function getOnlineServerSnapshot() {
+  return true;
+}
+
+/**
  * Bir sipariş ekranının offline durumunu yönetir.
  *
  * Üç şeyi birlikte tutar: bağlantı durumu, henüz senkronlanmamış mutasyon
@@ -31,8 +56,10 @@ export type OptimisticLine = {
  */
 export function useOfflineOrder(orderId: string) {
   const router = useRouter();
-  const [isOnline, setIsOnline] = useState(
-    () => typeof navigator === "undefined" || navigator.onLine,
+  const isOnline = useSyncExternalStore(
+    subscribeToOnlineStatus,
+    getOnlineSnapshot,
+    getOnlineServerSnapshot,
   );
   const [queueCount, setQueueCount] = useState(0);
   const [optimisticLines, setOptimisticLines] = useState<OptimisticLine[]>([]);
@@ -75,23 +102,14 @@ export function useOfflineOrder(orderId: string) {
     }
   }, [refreshQueueView, router]);
 
+  // `isOnline` mount'ta (sunucuyla eşleşen `true` varsayımından gerçek değere)
+  // ya da bir `online` olayıyla değiştiğinde kuyruğu boşaltmayı dener —
+  // `sync()` zaten offline'sa hiçbir şey yapmıyor, o yüzden ayrım gerekmiyor.
   useEffect(() => {
-    // `sync()` kuyruğu boşaltmayı DENER (offline'sa hiçbir şey yapmaz) ve
-    // her koşulda kuyruk görünümünü tazeler — mount'ta ayrıca ayrı bir
-    // "yükle" çağrısına gerek yok.
-    const timer = setTimeout(() => void sync(), 0);
+    if (isOnline) void sync();
+  }, [isOnline, sync]);
 
-    function handleOnline() {
-      setIsOnline(true);
-      void sync();
-    }
-    function handleOffline() {
-      setIsOnline(false);
-    }
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
+  useEffect(() => {
     // `online`/`offline` olayları bazı ağlarda güvenilir tetiklenmiyor
     // (ör. wifi bağlı ama internet yok). Güvenlik ağı olarak düşük sıklıkta
     // yeniden dene — sık değil ki gereksiz istek yığmasın.
@@ -99,14 +117,8 @@ export function useOfflineOrder(orderId: string) {
       if (navigator.onLine) void sync();
     }, 30_000);
 
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-      clearInterval(interval);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- yalnızca mount'ta kurulur
-  }, []);
+    return () => clearInterval(interval);
+  }, [sync]);
 
   const addItem = useCallback(
     async (input: {
