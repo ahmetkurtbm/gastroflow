@@ -551,3 +551,31 @@ reçeteler, ayarlar, denetim ve mutfak ekranının gövdesi henüz `dict`e
 bağlanmadı (bkz. `src/lib/i18n/dictionaries.ts` başındaki not) — İngilizce
 seçilse bile o kısımlar Türkçe görünür, bu bir hata değil bilinen sınır.
 Kanıt: `e2e/language-switch.spec.ts`.
+
+---
+
+## 12. Faz 7 sonrası — geri bildirimle bulunan/düzeltilen ek konular
+
+**Salon/masa yönetimi ekranı** (`/settings/salon`, `src/lib/floor/`):
+`/pos` "Ayarlar → Salon ve masalar bölümünden ekle" diyordu ama böyle bir
+ekran hiç yoktu — alanlar (`areas`) ve masalar (`tables`) yalnızca SQL ile
+ekleniyordu. Bu ekran o boşluğu kapatıyor: alan ekle/sil, masa ekle/sil
+(açık adisyonu olan masa silinemez — kontrol uygulama katmanında, çünkü
+`orders.table_id` FK'si `on delete set null`, veritabanı kısıtı bunu tek
+başına engellemiyor). Aynı zamanda gerçek bir sessiz-veri-kaybı hatasını da
+düzeltti: `loadFloorPlan()` (`src/lib/orders/queries.ts`) yalnızca `areas`
+tablosundaki satırları dönüyordu — bir alan silinince (masalar cascade
+silinmiyor, yalnızca `area_id` NULL oluyor) o masalar salon ekranında hiçbir
+uyarı vermeden kayboluyordu. Artık `area_id` NULL olan masalar "Diğer"
+sözde-alanı altında toplanıyor. Kanıt: `e2e/floor-management.spec.ts`.
+
+**`useOfflineOrder` hydration uyuşmazlığı** (`src/lib/offline/use-offline-order.ts`):
+`isOnline` durumu `useState(() => navigator.onLine)` ile başlatılıyordu.
+Sunucuda `navigator` yok (varsayılan `true`), istemci hydration ANINDA
+gerçek değeri okuyunca — sayfa çevrimdışıyken yenilenirse, ki Faz 7'nin
+service worker'ı sayesinde bu artık gerçekten mümkün — sunucu/istemci HTML'i
+uyuşmuyor, React "Hydration failed" uyarısı basıyordu (zararsız ama gürültülü).
+`useSyncExternalStore`'a geçildi: `getServerSnapshot` sunucuyla birebir
+eşleşen `true`'yu döner, gerçek değer yalnızca hydration tamamlandıktan
+sonraki bir render'da okunur — React'ın tam olarak bu sınıf problem için
+sunduğu API.

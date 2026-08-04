@@ -95,11 +95,22 @@ export async function loadFloorPlan(): Promise<FloorArea[]> {
     tablesByArea.set(table.area_id, list);
   }
 
-  return (areasResult.data ?? []).map((area) => ({
+  const areas = (areasResult.data ?? []).map((area) => ({
     id: area.id,
     name: area.name,
     tables: tablesByArea.get(area.id) ?? [],
   }));
+
+  // `area_id` NULL olan masalar (ör. alanı silinmiş — `tables.area_id` FK'si
+  // `on delete set null`) hiçbir zaman yukarıdaki döngüde eşleşmez ve sessizce
+  // kaybolurdu. "null" anahtarıyla toplanan masaları ayrı bir sözde alan
+  // olarak ekliyoruz ki hiçbir masa arayüzden görünmez olmasın.
+  const unassigned = tablesByArea.get(null) ?? [];
+  if (unassigned.length > 0) {
+    areas.push({ id: "unassigned", name: "Diğer", tables: unassigned });
+  }
+
+  return areas;
 }
 
 /** POS'ta gösterilecek satılabilir ürünler; fiyatı olmayan ürün gösterilmez. */
