@@ -6,6 +6,7 @@ import { loadFloorAdmin } from "@/lib/floor/queries";
 
 import { AddAreaForm } from "./add-area-form";
 import { AddTableForm } from "./add-table-form";
+import { FloorCanvas } from "./floor-canvas";
 
 export const metadata: Metadata = { title: "Salon ve Masalar" };
 
@@ -63,21 +64,26 @@ export default async function SalonSettingsPage() {
               </div>
 
               {area.tables.length > 0 ? (
-                <ul className="divide-y divide-line">
-                  {area.tables.map((table) => (
-                    <li key={table.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                      <span className="text-ink">
-                        {table.name} <span className="text-ink-muted">· {table.seats} kişilik</span>
-                      </span>
-                      <form action={deleteTable}>
-                        <input type="hidden" name="id" value={table.id} />
-                        <button type="submit" className="text-xs text-danger hover:underline">
-                          Sil
-                        </button>
-                      </form>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <div className="p-4">
+                    <FloorCanvas tables={area.tables} />
+                  </div>
+                  <ul className="divide-y divide-line border-t border-line">
+                    {area.tables.map((table) => (
+                      <li key={table.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                        <span className="text-ink">
+                          {table.name} <span className="text-ink-muted">· {table.seats} kişilik</span>
+                        </span>
+                        <form action={deleteTable}>
+                          <input type="hidden" name="id" value={table.id} />
+                          <button type="submit" className="text-xs text-danger hover:underline">
+                            Sil
+                          </button>
+                        </form>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               ) : (
                 <p className="px-4 py-3 text-sm text-ink-muted">Bu alanda henüz masa yok.</p>
               )}

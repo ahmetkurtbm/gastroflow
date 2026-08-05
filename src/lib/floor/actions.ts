@@ -128,3 +128,47 @@ export async function deleteTable(formData: FormData) {
   revalidatePath("/settings/salon");
   revalidatePath("/pos");
 }
+
+const positionSchema = z.object({
+  id: z.uuid(),
+  x: z.number().min(0).max(100),
+  y: z.number().min(0).max(100),
+});
+
+/**
+ * Sürükle-bırak editöründen (bkz. floor-canvas.tsx) gelen konum kaydı.
+ *
+ * Form action değil — sürükleme bittiğinde doğrudan bir fonksiyon çağrısı
+ * gibi çağrılıyor (Next.js Server Action'ları client bileşenlere prop olarak
+ * geçilip form dışında da çağrılabilir). Sık sürüklemede her pikselde değil,
+ * yalnızca bırakıldığında (pointerup) bir kez çağrılıyor — gereksiz istek
+ * yığmasın diye.
+ */
+export async function updateTablePosition(id: string, x: number, y: number): Promise<void> {
+  const input = positionSchema.parse({ id, x, y });
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("tables")
+    .update({ pos_x: input.x, pos_y: input.y })
+    .eq("id", input.id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/settings/salon");
+  revalidatePath("/pos");
+}
+
+/** Bir masayı "yerleştirilmemiş" durumuna geri döndürür. */
+export async function unplaceTable(formData: FormData) {
+  const id = z.uuid().parse(formData.get("id"));
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("tables")
+    .update({ pos_x: null, pos_y: null })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/settings/salon");
+  revalidatePath("/pos");
+}

@@ -24,6 +24,8 @@ export type FloorTable = {
   id: string;
   name: string;
   seats: number;
+  posX: number | null;
+  posY: number | null;
   openOrder: {
     id: string;
     orderNo: number | null;
@@ -52,7 +54,7 @@ export async function loadFloorPlan(): Promise<FloorArea[]> {
 
   const [areasResult, tablesResult, ordersResult] = await Promise.all([
     supabase.from("areas").select("id, name, sort_order").eq("is_active", true).order("sort_order"),
-    supabase.from("tables").select("id, name, seats, area_id").eq("is_active", true).order("name"),
+    supabase.from("tables").select("id, name, seats, area_id, pos_x, pos_y").eq("is_active", true).order("name"),
     supabase
       .from("orders")
       .select(
@@ -90,6 +92,8 @@ export async function loadFloorPlan(): Promise<FloorArea[]> {
       id: table.id,
       name: table.name,
       seats: table.seats,
+      posX: table.pos_x === null ? null : Number(table.pos_x),
+      posY: table.pos_y === null ? null : Number(table.pos_y),
       openOrder: orderByTable.get(table.id) ?? null,
     });
     tablesByArea.set(table.area_id, list);
@@ -220,6 +224,99 @@ export async function loadOpenOrderForTable(tableId: string): Promise<OrderView 
     lines,
     total: lines.reduce((sum, l) => sum + lineTotal(l), 0),
   };
+}
+
+/**
+ * `loadOpenOrderForTable`'ın masasız (Gel Al / Self Servis) karşılığı —
+ * `/pos/siparis/[orderId]` bu fonksiyonla, `/pos/masa/[tableId]` diğeriyle
+ * çalışır. İkisi de aynı `OrderView` şeklini döndürdüğü için `OrderScreen`/
+ * `Cart` hiçbir değişiklik gerektirmeden ikisini de gösterebiliyor.
+ */
+export async function loadOpenOrderById(orderId: string): Promise<OrderView | null> {
+  const supabase = await createClient();
+
+  const { data: order } = await supabase
+    .from("orders")
+    .select(
+      `id, order_no, table_id, guest_count, tables(name), order_lines(id, quantity, unit_price, status, note, menu_items(name), order_line_modifiers(name, price_delta), ${DISCOUNT_SELECT})`,
+    )
+    .eq("id", orderId)
+    .eq("status", "open")
+    .maybeSingle();
+
+  if (!order) return null;
+
+  const lines: OrderLineView[] = (order.order_lines ?? [])
+    .map((line) => ({
+      id: line.id,
+      menuItemName: line.menu_items?.name ?? "Bilinmeyen ürün",
+      quantity: toNumber(line.quantity),
+      unitPrice: toNumber(line.unit_price),
+      modifiers: (line.order_line_modifiers ?? []).map((m) => ({
+        name: m.name,
+        priceDelta: toNumber(m.price_delta),
+      })),
+      status: line.status,
+      note: line.note,
+      discount: pickActiveDiscount(line.line_discounts ?? []),
+    }))
+    .reverse();
+
+  return {
+    id: order.id,
+    orderNo: order.order_no,
+    tableId: order.table_id,
+    tableName: order.tables?.name ?? null,
+    guestCount: order.guest_count,
+    lines,
+    total: lines.reduce((sum, l) => sum + lineTotal(l), 0),
+  };
+}
+
+export type ChannelOrderSummary = {
+  id: string;
+  orderNo: number | null;
+  channel: "takeaway" | "self_service";
+  openedAt: string;
+  total: number;
+};
+
+/** Salon ekranında "devam et" olarak listelenecek, masasız açık siparişler. */
+export async function loadOpenChannelOrders(): Promise<ChannelOrderSummary[]> {
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from("orders")
+    .select(
+      `id, order_no, channel, opened_at, order_lines(quantity, unit_price, status, order_line_modifiers(price_delta), ${DISCOUNT_SELECT})`,
+    )
+    .is("table_id", null)
+    .eq("status", "open")
+    .order("opened_at", { ascending: false });
+
+  return (data ?? [])
+    .filter((o): o is typeof o & { channel: "takeaway" | "self_service" } =>
+      o.channel === "takeaway" || o.channel === "self_service",
+    )
+    .map((order) => {
+      const lines = order.order_lines ?? [];
+      const total = lines.reduce((sum, line) => {
+        const modifierTotal = (line.order_line_modifiers ?? []).reduce(
+          (s, m) => s + toNumber(m.price_delta),
+          0,
+        );
+        const base = toNumber(line.quantity) * (toNumber(line.unit_price) + modifierTotal);
+        return sum + applyLineDiscount(base, pickActiveDiscount(line.line_discounts ?? []));
+      }, 0);
+
+      return {
+        id: order.id,
+        orderNo: order.order_no,
+        channel: order.channel,
+        openedAt: order.opened_at,
+        total,
+      };
+    });
 }
 
 export type KitchenTicket = {

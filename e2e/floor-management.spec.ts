@@ -35,7 +35,12 @@ test("salon yönetimi: yeni alan + masa oluşturulup salon ekranında görünür
   await areaSection.getByLabel("Masa adı").fill(tableName);
   await areaSection.getByLabel("Kişi").fill("6");
   await areaSection.getByRole("button", { name: "Masa ekle" }).click();
-  await expect(areaSection.getByText(tableName)).toBeVisible({ timeout: 10_000 });
+  // Yönetim listesindeki satırı hedefliyoruz — masa henüz konumlanmadığı
+  // için canvas'ın "yerleştirilmemiş masalar" tepsisinde de aynı adla bir
+  // düğme beliriyor (bkz. floor-canvas.tsx), `getByText` ikisiyle de eşleşirdi.
+  await expect(areaSection.locator("li").filter({ hasText: tableName })).toBeVisible({
+    timeout: 10_000,
+  });
 
   await page.goto("/pos");
   await expect(page.getByText(tableName)).toBeVisible();
