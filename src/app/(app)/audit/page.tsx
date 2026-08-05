@@ -92,7 +92,7 @@ export default async function AuditPage() {
       )}
 
       <p className="mt-4 text-xs text-ink-muted">
-        Filtreleme, önce/sonra karşılaştırması ve dışa aktarma Faz 6&apos;da gelecek.
+        Filtreleme, önce/sonra karşılaştırması ve dışa aktarma yakında eklenecek.
       </p>
     </div>
   );

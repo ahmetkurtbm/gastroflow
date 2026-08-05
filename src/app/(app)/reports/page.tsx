@@ -46,8 +46,7 @@ export default async function ReportsPage() {
           {tenantResult.data?.name ?? "Genel bakış"}
         </h1>
         <p className="mt-1 text-sm text-ink-muted">
-          Sistem kurulumu tamamlandı. Satış, maliyet ve varyans raporları
-          Faz 6&apos;da bu ekrana gelecek.
+          Detaylı satış, maliyet ve varyans raporları yakında bu ekrana eklenecek.
         </p>
       </div>
 
