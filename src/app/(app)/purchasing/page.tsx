@@ -41,15 +41,15 @@ export default async function PurchasingPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <div className="mb-6 flex items-start justify-between gap-3">
-        <div>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight text-ink">Satın Alma</h1>
           <p className="mt-1 text-sm leading-relaxed text-ink-muted">
             Tedarikçi fiyat listesinden sipariş oluştur, müdür/patron onaylasın,
             mal geldiğinde kabul et — stok otomatik girer.
           </p>
         </div>
-        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+        <div className="flex flex-wrap gap-2 sm:justify-end">
           <Link
             href="/purchasing/tedarikciler"
             className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:bg-surface-sunken"

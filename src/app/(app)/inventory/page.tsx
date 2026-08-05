@@ -33,8 +33,8 @@ export default async function InventoryPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <div className="mb-6 flex items-start justify-between gap-3">
-        <div>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight text-ink">Stok</h1>
           <p className="mt-1 text-sm leading-relaxed text-ink-muted">
             Bakiye bir sayı olarak saklanmıyor; her satırın altındaki hareket
@@ -42,7 +42,7 @@ export default async function InventoryPage() {
             reçeteye göre otomatik yazılır.
           </p>
         </div>
-        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+        <div className="flex flex-wrap gap-2 sm:justify-end">
           <Link
             href="/inventory/varyans"
             className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:bg-surface-sunken"
