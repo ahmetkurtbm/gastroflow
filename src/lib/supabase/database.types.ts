@@ -1,11 +1,4 @@
-/**
- * ÜRETİLEN DOSYA — elle düzenleme.
- *
- * Şema değiştiğinde yeniden üret:
- *   supabase gen types typescript --project-id fzshndeywcvjktvahdab > src/lib/supabase/database.types.ts
- */
-
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -1699,6 +1692,8 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          pos_x: number | null
+          pos_y: number | null
           seats: number
           tenant_id: string
           updated_at: string
@@ -1710,6 +1705,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          pos_x?: number | null
+          pos_y?: number | null
           seats?: number
           tenant_id: string
           updated_at?: string
@@ -1721,6 +1718,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          pos_x?: number | null
+          pos_y?: number | null
           seats?: number
           tenant_id?: string
           updated_at?: string
@@ -1901,7 +1900,7 @@ export type Database = {
         | "day_end_summary"
         | "weekly_cost_report"
       notification_status: "pending" | "sent" | "failed"
-      order_channel: "dine_in" | "takeaway" | "delivery"
+      order_channel: "dine_in" | "takeaway" | "self_service" | "delivery"
       order_line_status:
         | "pending"
         | "sent"
@@ -2086,7 +2085,7 @@ export const Constants = {
         "weekly_cost_report",
       ],
       notification_status: ["pending", "sent", "failed"],
-      order_channel: ["dine_in", "takeaway", "delivery"],
+      order_channel: ["dine_in", "takeaway", "self_service", "delivery"],
       order_line_status: [
         "pending",
         "sent",

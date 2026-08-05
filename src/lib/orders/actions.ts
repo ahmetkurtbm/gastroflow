@@ -77,6 +77,45 @@ export async function openTable(formData: FormData) {
   redirect(`/pos/masa/${tableId}`);
 }
 
+const openChannelSchema = z.object({
+  channel: z.enum(["takeaway", "self_service"]),
+});
+
+/**
+ * Masasız bir sipariş açar (Gel Al / Self Servis).
+ *
+ * `openTable`'dan farkı: masa yok, dolayısıyla "aynı masada tek açık
+ * adisyon" kısıtı (migration 0008) hiç devreye girmiyor — aynı anda birden
+ * çok gel-al siparişi normal, her tıklama YENİ bir sipariş açar. Ekran
+ * `/pos/masa/[tableId]` değil `/pos/siparis/[orderId]` — masa yerine
+ * doğrudan adisyon id'sine göre yükleniyor (bkz. `loadOpenOrderById`).
+ */
+export async function openChannelOrder(formData: FormData) {
+  const input = openChannelSchema.parse({ channel: formData.get("channel") });
+  const user = await requireAppUser();
+  if (!user.branchId) {
+    throw new Error("Şube ataması olmayan kullanıcı sipariş açamaz.");
+  }
+  const supabase = await createClient();
+
+  const { data: order, error } = await supabase
+    .from("orders")
+    .insert({
+      tenant_id: user.tenantId,
+      branch_id: user.branchId,
+      channel: input.channel,
+      opened_by: user.userId,
+      client_key: randomUUID(),
+    })
+    .select("id")
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/pos");
+  redirect(`/pos/siparis/${order.id}`);
+}
+
 const addLineSchema = z.object({
   orderId: z.uuid(),
   menuItemId: z.uuid(),
