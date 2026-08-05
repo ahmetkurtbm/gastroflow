@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AppNav } from "@/components/app-nav";
+import { MobileNavDrawer } from "@/components/mobile-nav-drawer";
 import { navFor } from "@/lib/auth/access";
 import { signOut } from "@/lib/auth/actions";
 import { requireAppUser } from "@/lib/auth/current-user";
@@ -59,14 +60,35 @@ export default async function AppLayout({
   return (
     <I18nProvider locale={locale} dict={dict}>
       <div className="flex min-h-full flex-col md:flex-row">
-        <aside className="border-b border-line bg-surface-raised md:w-56 md:shrink-0 md:border-r md:border-b-0">
-          <div className="flex items-center justify-between px-4 py-3 md:block md:px-4 md:py-4">
+        {/* Mobil üst çubuk: hamburger → kayar menü. Kenar çubuğunun dikey
+            listesi telefonda kullanılamıyordu (yatay kaydırmalı şerite
+            dönüşüyordu) — artık masaüstüyle birebir aynı gezinme deseni. */}
+        <div className="flex items-center justify-between border-b border-line bg-surface-raised px-3 py-2.5 md:hidden">
+          <div className="flex min-w-0 items-center gap-2">
+            <MobileNavDrawer
+              items={navItems}
+              tenantName={tenantName}
+              branchName={branchName}
+              fullName={fullName}
+              roleLabel={dict.role[user.role]}
+              signOutLabel={dict.shell.signOut}
+              onSignOut={signOut}
+            />
+            <Link href="/" className="truncate text-base font-bold tracking-tight text-ink">
+              Gastro<span className="text-brand-600">Flow</span>
+            </Link>
+          </div>
+          <LanguageSwitcher locale={locale} />
+        </div>
+
+        <aside className="hidden bg-surface-raised md:block md:w-56 md:shrink-0 md:border-r md:border-line">
+          <div className="px-4 py-4">
             <Link href="/" className="block">
               <span className="text-lg font-bold tracking-tight text-ink">
                 Gastro<span className="text-brand-600">Flow</span>
               </span>
             </Link>
-            <p className="truncate text-xs text-ink-muted md:mt-1">
+            <p className="mt-1 truncate text-xs text-ink-muted">
               {tenantName}
               {branchName ? ` · ${branchName}` : ""}
             </p>
@@ -76,7 +98,7 @@ export default async function AppLayout({
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex items-center justify-end gap-3 border-b border-line px-4 py-3">
+          <header className="hidden items-center justify-end gap-3 border-b border-line px-4 py-3 md:flex">
             <LanguageSwitcher locale={locale} />
             <div className="text-right leading-tight">
               <p className="text-sm font-medium text-ink">{fullName}</p>

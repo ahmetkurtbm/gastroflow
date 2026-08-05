@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /**
- * Kenar çubuğu menüsü.
+ * Menü listesi — hem masaüstü kenar çubuğunda hem mobil kayar menüde
+ * (bkz. `MobileNavDrawer`) aynı bileşen kullanılıyor, ikisi de dikey liste.
  *
  * Maddeler sunucuda role göre süzülüp geliyor (bkz. navFor) ve aktif dile
  * çevrilmiş olarak geliyor. Buradaki tek iş aktif olanı işaretlemek — bu
@@ -14,7 +15,7 @@ export function AppNav({ items }: { items: readonly { href: string; label: strin
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Ana menü" className="flex gap-1 overflow-x-auto p-2 md:flex-col md:overflow-visible md:p-3">
+    <nav aria-label="Ana menü" className="flex flex-col gap-1 p-3">
       {items.map((item) => {
         const active =
           pathname === item.href || pathname.startsWith(`${item.href}/`);
