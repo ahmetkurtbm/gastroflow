@@ -47,17 +47,26 @@ export default async function SettingsPage() {
     <div className="mx-auto max-w-3xl">
       <h1 className="mb-1 text-2xl font-bold tracking-tight text-ink">Ayarlar</h1>
       <p className="mb-6 text-sm text-ink-muted">
-        Personel ve entegrasyon ayarları sonraki bir aşamada eklenecek. Şimdilik
+        Entegrasyon ayarları sonraki bir aşamada eklenecek. Şimdilik personel,
         salon/masa yönetimi, bildirim kuralları ve kuyruğu burada.
       </p>
 
-      <Link
-        href="/settings/salon"
-        className="mb-6 flex items-center justify-between rounded-xl border border-line bg-surface-raised px-4 py-3 text-sm font-medium text-ink transition-colors hover:border-brand-400"
-      >
-        Salon ve masalar
-        <span className="text-ink-muted">→</span>
-      </Link>
+      <div className="mb-6 space-y-2">
+        <Link
+          href="/settings/personel"
+          className="flex items-center justify-between rounded-xl border border-line bg-surface-raised px-4 py-3 text-sm font-medium text-ink transition-colors hover:border-brand-400"
+        >
+          Personel
+          <span className="text-ink-muted">→</span>
+        </Link>
+        <Link
+          href="/settings/salon"
+          className="flex items-center justify-between rounded-xl border border-line bg-surface-raised px-4 py-3 text-sm font-medium text-ink transition-colors hover:border-brand-400"
+        >
+          Salon ve masalar
+          <span className="text-ink-muted">→</span>
+        </Link>
+      </div>
 
       <section className="rounded-xl border border-line bg-surface-raised">
         <h2 className="border-b border-line px-4 py-3 text-sm font-semibold text-ink">

@@ -579,3 +579,22 @@ uyuşmuyor, React "Hydration failed" uyarısı basıyordu (zararsız ama gürül
 eşleşen `true`'yu döner, gerçek değer yalnızca hydration tamamlandıktan
 sonraki bir render'da okunur — React'ın tam olarak bu sınıf problem için
 sunduğu API.
+
+**Personel yönetimi** (`/settings/personel`, `src/lib/staff/`): Daha önce
+personel eklemenin tek yolu SQL çalıştırmaktı — bir restoran sahibi kendi
+başına garson/müdür ekleyemiyordu (migration 0004'teki bir yorum bile
+"Faz 8'de personel yönetimi ekranında ele alınacak" diye not düşmüştü).
+`addStaffMember` iki adımı birlikte yapıyor: `auth.users`'ta hesap açmak
+(yalnızca `service_role` ile mümkün — bu şema RLS/PostgREST'e kapalı) ve
+`memberships`'e yazmak (BİLEREK normal, oturumlu istemciyle — hem
+`is_owner()` RLS kontrolünden gerçekten geçsin, hem `audit_log`'a doğru
+aktör `auth.uid()` yazılsın; `service_role` ile yazılsaydı "kim ekledi"
+sorusu cevapsız kalırdı). İkinci adım başarısız olursa ilk adım (auth
+kullanıcısı) geri alınır — sahipsiz hesap kalmaz. Şifre yalnızca oluşturma
+anında bir kez gösteriliyor (mail entegrasyonu yok, elle iletiliyor).
+
+Personel **silinmiyor, pasif ediliyor** (`memberships.is_active`) — geçmiş
+korunur, işten ayrılıp geri dönen biri yeniden aktive edilebilir. Rol/pasif
+etme değişikliği JWT claim'lerinin ~1 saatlik önbellek ömrü boyunca (bkz.
+migration 0004 `custom_access_token_hook`) anında yansımayabilir; bu ekranda
+açıkça belirtiliyor. Kanıt: `e2e/staff-management.spec.ts`.
