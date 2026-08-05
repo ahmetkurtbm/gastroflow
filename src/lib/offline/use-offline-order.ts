@@ -64,6 +64,11 @@ export function useOfflineOrder(orderId: string) {
   const [queueCount, setQueueCount] = useState(0);
   const [optimisticLines, setOptimisticLines] = useState<OptimisticLine[]>([]);
   const syncingRef = useRef(false);
+  // `sync()` meşgulken gelen bir çağrı sessizce atlanırsa, o çağrının
+  // eklediği mutasyon (ör. hızlı art arda "ürün ekle" + "mutfağa gönder")
+  // bir sonraki tetiklemeye kadar kuyrukta asılı kalabilirdi. Bu bayrak
+  // meşgulken geleni not eder; mevcut sync bitince otomatik tekrar dener.
+  const resyncRequestedRef = useRef(false);
 
   const refreshQueueView = useCallback(async () => {
     const all = await listQueue();
@@ -87,16 +92,23 @@ export function useOfflineOrder(orderId: string) {
   const sync = useCallback(async () => {
     // Aynı anda iki drain çalışmasın: `online` olayı ve manuel tetikleme
     // aynı anda gelirse aynı mutasyon iki kere denenmez (zararsız olurdu ama
-    // gereksiz istek).
-    if (syncingRef.current) return;
+    // gereksiz istek). Meşgulken gelen çağrı KAYBOLMUYOR — mevcut sync
+    // bitince `resyncRequestedRef` sayesinde otomatik tekrar deniyor.
+    if (syncingRef.current) {
+      resyncRequestedRef.current = true;
+      return;
+    }
     syncingRef.current = true;
 
     try {
-      const { syncedCount } = await drainQueue();
-      await refreshQueueView();
-      if (syncedCount > 0) {
-        router.refresh();
-      }
+      do {
+        resyncRequestedRef.current = false;
+        const { syncedCount } = await drainQueue();
+        await refreshQueueView();
+        if (syncedCount > 0) {
+          router.refresh();
+        }
+      } while (resyncRequestedRef.current);
     } finally {
       syncingRef.current = false;
     }

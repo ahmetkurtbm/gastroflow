@@ -169,9 +169,18 @@ export async function recordTransfer(
  * kişi ne görürse onu yazar. Sunucu tarafında sayılan miktarla sistemdeki
  * bakiye arasındaki farkı hesaplayıp `count_adjustment` hareketi yazar.
  *
- * Boş bırakılan ürünler atlanır (o oturumda sayılmadı demektir — "sayfa
- * sayfa kaydet" akışını destekler); fark sıfırsa hareket hiç yazılmaz,
- * ledger'ı anlamsız sıfır kayıtlarla şişirmez.
+ * Boş bırakılan ürünler atlanır (o oturumda sayılmadı demektir) — bu,
+ * ekranın "sayfa sayfa kaydet" akışının temel taşı: mobil sayım ekranı
+ * (bkz. src/lib/offline/use-offline-count.ts) ürünleri sayfalara bölüp her
+ * sayfayı ayrı bir çağrıyla, yalnızca o sayfadaki `qty_<id>` alanlarıyla
+ * gönderiyor. Fark sıfırsa hareket hiç yazılmaz, ledger'ı anlamsız sıfır
+ * kayıtlarla şişirmez.
+ *
+ * `batchId` idempotency anahtarı: aynı sayfa iki kez gönderilirse (offline
+ * kuyruktan yeniden deneme, ya da yanıt ağda kaybolup istemci tekrar
+ * denerse) `stock_movements`'taki `(reference_type, reference_id,
+ * inventory_item_id)` kısıtı ikinci denemeyi reddeder — depletion'daki aynı
+ * desen (bkz. migration 0010).
  */
 export async function recordCount(
   _previous: ActionState,
@@ -179,6 +188,7 @@ export async function recordCount(
 ): Promise<ActionState> {
   try {
     const locationId = z.uuid().parse(formData.get("locationId"));
+    const batchId = z.uuid().parse(formData.get("batchId"));
     const user = await requireAppUser();
     const supabase = await createClient();
 
@@ -212,6 +222,8 @@ export async function recordCount(
       quantity: number;
       note: string;
       created_by: string;
+      reference_type: string;
+      reference_id: string;
     }[] = [];
 
     for (const item of items) {
@@ -236,15 +248,24 @@ export async function recordCount(
         quantity: delta,
         note: `Sayım: sistemde ${current}, sayılan ${counted}`,
         created_by: user.userId,
+        reference_type: "stock_count",
+        reference_id: batchId,
       });
     }
 
     if (rows.length === 0) {
-      return { error: "Kaydedilecek fark yok — girilen değerler boş ya da sistemdeki bakiyeyle aynı." };
+      return { ok: true };
     }
 
     const { error } = await supabase.from("stock_movements").insert(rows);
-    if (error) return { error: error.message };
+    if (error) {
+      // 23505 = unique_violation → bu sayfa (aynı batchId) daha önce zaten
+      // kaydedilmiş (offline kuyruktan yeniden deneme, ya da yanıt ağda
+      // kaybolup istemci tekrar denedi). "Zaten yapılmış" say, hata dönme —
+      // aksi hâlde kuyruk bu sayfayı sonsuza dek yeniden denerdi.
+      if (error.code === "23505") return { ok: true };
+      return { error: error.message };
+    }
   } catch (error) {
     return fail(error);
   }

@@ -1,12 +1,12 @@
 /**
- * Kuyruğa alınan sipariş mutasyonları.
+ * Kuyruğa alınan mutasyonlar (sipariş VE sayım).
  *
- * `id` aynı zamanda sunucudaki `client_key`'dir — bu, kuyruğun idempotency
- * garantisinin kaynağı. Aynı mutasyon iki kez senkronlansa bile (ağ kesilip
- * yeniden denense, ya da sekme kapanıp açılsa) veritabanındaki unique kısıt
- * ikinci denemeyi ya reddeder ya da (bizim ele aldığımız şekilde) "zaten
- * yapılmış" sayar. Bkz. supabase/migrations/0008 — `orders`/`order_lines`
- * tablolarındaki `client_key` kısıtları.
+ * `id` aynı zamanda sunucudaki idempotency anahtarıdır (`client_key` ya da
+ * `batchId`). Aynı mutasyon iki kez senkronlansa bile (ağ kesilip yeniden
+ * denense, ya da sekme kapanıp açılsa) veritabanındaki unique kısıt ikinci
+ * denemeyi ya reddeder ya da (bizim ele aldığımız şekilde) "zaten yapılmış"
+ * sayar. Sipariş satırları için bkz. supabase/migrations/0008
+ * (`client_key`); sayım için bkz. 0010 (`reference_type`/`reference_id`).
  */
 export type QueuedMutation =
   | {
@@ -31,6 +31,15 @@ export type QueuedMutation =
       readonly createdAt: number;
       readonly tenantId: string;
       readonly orderId: string;
+    }
+  | {
+      readonly id: string;
+      readonly kind: "record_count_page";
+      readonly createdAt: number;
+      readonly locationId: string;
+      /** Sayfadaki her satır: hammadde id'si + sayılan miktar (string —
+       * input değeri aynen taşınır, sunucu ayrıştırır). */
+      readonly entries: readonly { itemId: string; quantity: string }[];
     };
 
 export type SyncOutcome =

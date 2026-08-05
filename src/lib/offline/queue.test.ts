@@ -16,10 +16,20 @@ vi.mock("@/lib/orders/actions", () => ({
   addOrderLine: vi.fn(),
   sendToKitchen: vi.fn(),
 }));
+vi.mock("@/lib/inventory/actions", () => ({
+  recordCount: vi.fn(),
+}));
 
 const { addOrderLine, sendToKitchen } = await import("@/lib/orders/actions");
-const { enqueueAddLine, enqueueSendToKitchen, listQueue, cancelQueuedMutation, drainQueue } =
-  await import("./queue");
+const { recordCount } = await import("@/lib/inventory/actions");
+const {
+  enqueueAddLine,
+  enqueueSendToKitchen,
+  enqueueRecordCountPage,
+  listQueue,
+  cancelQueuedMutation,
+  drainQueue,
+} = await import("./queue");
 
 const BASE = { tenantId: "t1", orderId: "o1", userId: "u1" };
 
@@ -142,6 +152,40 @@ describe("drainQueue — sıra korunur", () => {
     expect(syncedCount).toBe(2);
     expect(addOrderLine).toHaveBeenCalledTimes(1);
     expect(sendToKitchen).toHaveBeenCalledTimes(1);
+    expect(await listQueue()).toHaveLength(0);
+  });
+});
+
+describe("sayım sayfası (record_count_page)", () => {
+  it("her satır qty_<itemId> alanı olarak, batchId ile birlikte gönderilir", async () => {
+    vi.mocked(recordCount).mockResolvedValue({ ok: true });
+
+    const mutation = await enqueueRecordCountPage({
+      locationId: "loc1",
+      entries: [
+        { itemId: "i1", quantity: "3.5" },
+        { itemId: "i2", quantity: "0" },
+      ],
+    });
+    await drainQueue();
+
+    const [, formData] = vi.mocked(recordCount).mock.calls[0]!;
+    expect(formData.get("locationId")).toBe("loc1");
+    expect(formData.get("batchId")).toBe(mutation.id);
+    expect(formData.get("qty_i1")).toBe("3.5");
+    expect(formData.get("qty_i2")).toBe("0");
+  });
+
+  it("senkron başarısız olursa sayfa kuyrukta kalır, başarılı olunca düşer", async () => {
+    vi.mocked(recordCount).mockResolvedValueOnce({ error: "Ağ hatası." });
+
+    await enqueueRecordCountPage({ locationId: "loc1", entries: [{ itemId: "i1", quantity: "1" }] });
+
+    expect((await drainQueue()).syncedCount).toBe(0);
+    expect(await listQueue()).toHaveLength(1);
+
+    vi.mocked(recordCount).mockResolvedValue({ ok: true });
+    expect((await drainQueue()).syncedCount).toBe(1);
     expect(await listQueue()).toHaveLength(0);
   });
 });

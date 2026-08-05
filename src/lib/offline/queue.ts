@@ -1,26 +1,26 @@
+import { recordCount } from "@/lib/inventory/actions";
 import { addOrderLine, sendToKitchen } from "@/lib/orders/actions";
 
 import { withStore } from "./db";
 import type { QueuedMutation, SyncOutcome } from "./types";
 
 /**
- * Offline sipariş kuyruğu.
+ * Offline kuyruk — sipariş ekranı VE sayım ekranı burayı paylaşıyor.
  *
- * Kapsamı bilerek dar tutuldu: bu, zaten açık olan bir sipariş ekranında
- * bağlantı kesildiğinde ürün eklemeyi ve mutfağa göndermeyi kesintisiz
- * sürdürür. YENİ BİR MASA AÇMAK bu kapsamda değil — çünkü bu bir Server
- * Component uygulaması ve her navigasyon (yeni sayfaya geçiş) sunucudan
- * RSC verisi çekmeyi gerektirir; service worker olmadan hiçbir navigasyon
- * offline çalışmaz. Tam "soğuk başlangıç" offline desteği (app-shell
- * önbellekleme) ayrı ve daha büyük bir iş — bkz. proje panosu.
+ * Kapsamı bilerek dar tutuldu: bu, zaten açık olan bir ekranda (sipariş ya
+ * da sayım) bağlantı kesildiğinde mutasyonları kesintisiz sürdürür. YENİ BİR
+ * MASA AÇMAK ya da yeni bir sayfaya gitmek bu kapsamda değil — çünkü bu bir
+ * Server Component uygulaması ve her navigasyon sunucudan RSC verisi
+ * çekmeyi gerektirir (bkz. public/sw.js — soğuk başlangıç offline'ı bu
+ * ayrı, daha geniş bir mekanizmayla çözüyor).
  *
- * Mutasyonlar mevcut Server Action'ları (addOrderLine, sendToKitchen)
- * ÇAĞIRARAK senkronlanır — Supabase'e doğrudan bağlanıp fiyat/reçete
- * mantığını burada tekrarlamıyoruz. Sunucu aksiyonunu doğrudan bir fonksiyon
- * gibi çağırmak da bir ağ isteğidir (Next.js bunu "Server Reference" olarak
- * sunucuya POST eder); dolayısıyla offline'ken bu da tıpkı form gönderimi
- * gibi başarısız olur ve kuyrukta bekler — asıl kazanç, başarısızlığı
- * SESSİZCE KAYBETMEK yerine yakalayıp saklamak.
+ * Mutasyonlar mevcut Server Action'ları (addOrderLine, sendToKitchen,
+ * recordCount) ÇAĞIRARAK senkronlanır — Supabase'e doğrudan bağlanıp
+ * fiyat/reçete/bakiye mantığını burada tekrarlamıyoruz. Sunucu aksiyonunu
+ * doğrudan bir fonksiyon gibi çağırmak da bir ağ isteğidir (Next.js bunu
+ * "Server Reference" olarak sunucuya POST eder); dolayısıyla offline'ken bu
+ * da tıpkı form gönderimi gibi başarısız olur ve kuyrukta bekler — asıl
+ * kazanç, başarısızlığı SESSİZCE KAYBETMEK yerine yakalayıp saklamak.
  */
 
 async function put(mutation: QueuedMutation): Promise<void> {
@@ -81,6 +81,21 @@ export async function enqueueSendToKitchen(input: {
     createdAt: nextTimestamp(),
     tenantId: input.tenantId,
     orderId: input.orderId,
+  };
+  await put(mutation);
+  return mutation;
+}
+
+export async function enqueueRecordCountPage(input: {
+  locationId: string;
+  entries: readonly { itemId: string; quantity: string }[];
+}): Promise<QueuedMutation> {
+  const mutation: QueuedMutation = {
+    id: crypto.randomUUID(),
+    kind: "record_count_page",
+    createdAt: nextTimestamp(),
+    locationId: input.locationId,
+    entries: input.entries,
   };
   await put(mutation);
   return mutation;
@@ -148,6 +163,21 @@ async function syncOne(mutation: QueuedMutation): Promise<SyncOutcome> {
       }
 
       const result = await addOrderLine({}, formData);
+      if (result.error) {
+        return { status: "failed", mutation, error: result.error };
+      }
+      return { status: "synced", mutation };
+    }
+
+    if (mutation.kind === "record_count_page") {
+      const formData = new FormData();
+      formData.set("locationId", mutation.locationId);
+      formData.set("batchId", mutation.id);
+      for (const entry of mutation.entries) {
+        formData.set(`qty_${entry.itemId}`, entry.quantity);
+      }
+
+      const result = await recordCount({}, formData);
       if (result.error) {
         return { status: "failed", mutation, error: result.error };
       }
