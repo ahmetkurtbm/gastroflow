@@ -74,12 +74,17 @@ export default async function SalonSettingsPage() {
                         <span className="text-ink">
                           {table.name} <span className="text-ink-muted">· {table.seats} kişilik</span>
                         </span>
-                        <form action={deleteTable}>
-                          <input type="hidden" name="id" value={table.id} />
-                          <button type="submit" className="text-xs text-danger hover:underline">
-                            Sil
-                          </button>
-                        </form>
+                        <span className="flex items-center gap-3">
+                          <Link href={`/settings/salon/qr/${table.id}`} className="text-xs text-brand-700 hover:underline">
+                            QR kodu
+                          </Link>
+                          <form action={deleteTable}>
+                            <input type="hidden" name="id" value={table.id} />
+                            <button type="submit" className="text-xs text-danger hover:underline">
+                              Sil
+                            </button>
+                          </form>
+                        </span>
                       </li>
                     ))}
                   </ul>

@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 
 import { applyLineDiscount, lineTotal, pickActiveDiscount } from "./types";
+
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 import type { LineDiscountView, MenuCategory, MenuModifierGroup, OrderLineView, OrderView } from "./types";
 
 export type {
@@ -117,24 +119,50 @@ export async function loadFloorPlan(): Promise<FloorArea[]> {
   return areas;
 }
 
-/** POS'ta gösterilecek satılabilir ürünler; fiyatı olmayan ürün gösterilmez. */
-export async function loadSellableMenu(branchId: string): Promise<MenuCategory[]> {
-  const supabase = await createClient();
+/**
+ * POS'ta gösterilecek satılabilir ürünler; fiyatı olmayan ürün gösterilmez.
+ *
+ * `client` opsiyonel: varsayılan oturum bağlı (RLS'li) istemci. QR self-servis
+ * sipariş ekranı (`src/lib/qr-order`) burada kimliği doğrulanmış bir oturum
+ * OLMADAN aynı menüyü göstermesi gerektiği için `createServiceRoleClient()`
+ * geçirir — mantığı (fiyat çözümleme, modifier gruplama) iki yerde
+ * kopyalamamak için parametrize edildi.
+ *
+ * `tenantId` da opsiyonel ama RLS'i BYPASS EDEN bir istemciyle (servis rolü)
+ * çağrılırken FİİLEN ZORUNLU: normalde `tables_select`/`categories_select`
+ * gibi policy'ler tenant'ı zaten zorluyor, ama servis rolü hiçbir policy'ye
+ * tabi değil — `tenantId` verilmezse bu sorgu TÜM kiracıların menüsünü tek
+ * listede döndürür. `loadQrMenu` bunu her zaman geçirir.
+ */
+export async function loadSellableMenu(
+  branchId: string,
+  client?: SupabaseClient,
+  tenantId?: string,
+): Promise<MenuCategory[]> {
+  const supabase = client ?? (await createClient());
+
+  let categoriesQuery = supabase.from("categories").select("id, name, sort_order").eq("is_active", true);
+  let itemsQuery = supabase
+    .from("menu_items")
+    .select(
+      "id, name, category_id, modifier_groups(id, name, min_select, max_select, sort_order, modifiers(id, name, price_delta, sort_order, is_active))",
+    )
+    .eq("is_active", true);
+  let pricesQuery = supabase
+    .from("menu_prices")
+    .select("menu_item_id, price, branch_id, valid_from")
+    .or(`branch_id.eq.${branchId},branch_id.is.null`);
+
+  if (tenantId) {
+    categoriesQuery = categoriesQuery.eq("tenant_id", tenantId);
+    itemsQuery = itemsQuery.eq("tenant_id", tenantId);
+    pricesQuery = pricesQuery.eq("tenant_id", tenantId);
+  }
 
   const [categoriesResult, itemsResult, pricesResult] = await Promise.all([
-    supabase.from("categories").select("id, name, sort_order").eq("is_active", true).order("sort_order"),
-    supabase
-      .from("menu_items")
-      .select(
-        "id, name, category_id, modifier_groups(id, name, min_select, max_select, sort_order, modifiers(id, name, price_delta, sort_order, is_active))",
-      )
-      .eq("is_active", true)
-      .order("sort_order"),
-    supabase
-      .from("menu_prices")
-      .select("menu_item_id, price, branch_id, valid_from")
-      .or(`branch_id.eq.${branchId},branch_id.is.null`)
-      .order("valid_from", { ascending: false }),
+    categoriesQuery.order("sort_order"),
+    itemsQuery.order("sort_order"),
+    pricesQuery.order("valid_from", { ascending: false }),
   ]);
 
   const priceByItem = new Map<string, number>();

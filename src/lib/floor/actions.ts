@@ -1,5 +1,7 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
+
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -156,6 +158,28 @@ export async function updateTablePosition(id: string, x: number, y: number): Pro
 
   revalidatePath("/settings/salon");
   revalidatePath("/pos");
+}
+
+/**
+ * Bir masanın QR sipariş bağlantısını (`qr_token`) yeniler.
+ *
+ * Eski token o an geçersiz kalır — masaya yapıştırılmış QR kod fotoğraflanıp
+ * paylaşılmışsa ya da tükenmez kalemle çizilmiş kod fiziksel olarak yıpranıp
+ * yenisi basılacaksa buradan tek tuşla eski bağlantı kapatılır. `tables_update`
+ * politikası zaten yalnızca `is_manager()` ile yazmaya izin veriyor (bkz.
+ * migration 0009 `rls_policy_hygiene`) — burada ayrıca rol kontrolü YOK.
+ */
+export async function regenerateTableQrToken(formData: FormData) {
+  const id = z.uuid().parse(formData.get("id"));
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("tables")
+    .update({ qr_token: randomUUID() })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/settings/salon");
 }
 
 /** Bir masayı "yerleştirilmemiş" durumuna geri döndürür. */

@@ -1781,6 +1781,7 @@ export type Database = {
           name: string
           pos_x: number | null
           pos_y: number | null
+          qr_token: string
           seats: number
           tenant_id: string
           updated_at: string
@@ -1794,6 +1795,7 @@ export type Database = {
           name: string
           pos_x?: number | null
           pos_y?: number | null
+          qr_token?: string
           seats?: number
           tenant_id: string
           updated_at?: string
@@ -1807,6 +1809,7 @@ export type Database = {
           name?: string
           pos_x?: number | null
           pos_y?: number | null
+          qr_token?: string
           seats?: number
           tenant_id?: string
           updated_at?: string

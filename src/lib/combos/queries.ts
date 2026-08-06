@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
 function toNumber(value: string | number | null | undefined): number {
   return typeof value === "number" ? value : Number(value ?? 0);
 }
@@ -75,21 +77,36 @@ export type SellableCombo = {
  * `allocateProportional`'ın orantı hesaplayabilmesi için her bileşenin bir
  * ağırlığı (normal fiyatı) olmalı; fiyatsız bir bileşen sessizce 0 TL'ye
  * "kombo bedava" gibi davranırdı, bu yanıltıcı olurdu.
+ *
+ * `client`/`tenantId` opsiyonel — bkz. `loadSellableMenu`'daki aynı desenin
+ * gerekçesi: QR self-servis ekranı bunu oturumsuz `createServiceRoleClient()`
+ * (RLS bypass) ile çağırır; o durumda `tenantId` fiilen zorunludur, aksi
+ * hâlde tüm kiracıların kombolari karışır.
  */
-export async function loadSellableCombos(branchId: string): Promise<SellableCombo[]> {
-  const supabase = await createClient();
+export async function loadSellableCombos(
+  branchId: string,
+  client?: SupabaseClient,
+  tenantId?: string,
+): Promise<SellableCombo[]> {
+  const supabase = client ?? (await createClient());
+
+  let combosQuery = supabase
+    .from("combos")
+    .select("id, name, price, combo_items(menu_item_id, quantity, menu_items(name))")
+    .eq("is_active", true);
+  let pricesQuery = supabase
+    .from("menu_prices")
+    .select("menu_item_id, price, branch_id, valid_from")
+    .or(`branch_id.eq.${branchId},branch_id.is.null`);
+
+  if (tenantId) {
+    combosQuery = combosQuery.eq("tenant_id", tenantId);
+    pricesQuery = pricesQuery.eq("tenant_id", tenantId);
+  }
 
   const [combosResult, pricesResult] = await Promise.all([
-    supabase
-      .from("combos")
-      .select("id, name, price, combo_items(menu_item_id, quantity, menu_items(name))")
-      .eq("is_active", true)
-      .order("name"),
-    supabase
-      .from("menu_prices")
-      .select("menu_item_id, price, branch_id, valid_from")
-      .or(`branch_id.eq.${branchId},branch_id.is.null`)
-      .order("valid_from", { ascending: false }),
+    combosQuery.order("name"),
+    pricesQuery.order("valid_from", { ascending: false }),
   ]);
 
   const priceByItem = new Map<string, number>();

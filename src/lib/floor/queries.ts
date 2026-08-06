@@ -6,6 +6,7 @@ export type FloorTableAdmin = {
   seats: number;
   posX: number | null;
   posY: number | null;
+  qrToken: string;
 };
 
 export type FloorAreaAdmin = {
@@ -21,7 +22,7 @@ export async function loadFloorAdmin(): Promise<FloorAreaAdmin[]> {
 
   const [areasResult, tablesResult] = await Promise.all([
     supabase.from("areas").select("id, name, sort_order").order("sort_order"),
-    supabase.from("tables").select("id, name, seats, area_id, pos_x, pos_y").order("name"),
+    supabase.from("tables").select("id, name, seats, area_id, pos_x, pos_y, qr_token").order("name"),
   ]);
 
   const tablesByArea = new Map<string, FloorTableAdmin[]>();
@@ -34,6 +35,7 @@ export async function loadFloorAdmin(): Promise<FloorAreaAdmin[]> {
       seats: table.seats,
       posX: table.pos_x === null ? null : Number(table.pos_x),
       posY: table.pos_y === null ? null : Number(table.pos_y),
+      qrToken: table.qr_token,
     });
     tablesByArea.set(table.area_id, list);
   }
