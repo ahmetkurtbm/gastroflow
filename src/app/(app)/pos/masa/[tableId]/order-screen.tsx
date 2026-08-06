@@ -134,6 +134,7 @@ export function OrderScreen({
                       key={item.id}
                       name={item.name}
                       price={item.price ?? 0}
+                      imageUrl={item.imageUrl}
                       hasOptions={item.modifierGroups.length > 0}
                       onAdd={() => handleTap(item)}
                     />

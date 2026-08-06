@@ -10,6 +10,7 @@ import { requireAppUser } from "@/lib/auth/current-user";
 import { loadOrderForPayment } from "@/lib/cash/queries";
 import { depleteOrderStock } from "@/lib/inventory/depletion";
 import { fiscalDeviceAdapter } from "@/lib/integrations";
+import { earnPointsForOrder } from "@/lib/loyalty/actions";
 import { createClient } from "@/lib/supabase/server";
 
 export type ActionState = { error?: string; ok?: boolean };
@@ -54,7 +55,7 @@ export async function recordPayment(
 
     const { data: order } = await supabase
       .from("orders")
-      .select("id, status, branch_id")
+      .select("id, status, branch_id, customer_id")
       .eq("id", input.orderId)
       .maybeSingle();
 
@@ -128,6 +129,22 @@ export async function recordPayment(
           });
         } catch (fiscalError) {
           console.error(`ÖKC fişi kesilemedi (adisyon ${input.orderId}):`, fiscalError);
+        }
+
+        // Sadakat puanı da aynı desende bir YAN ETKİ — kazanamamak ödemeyi
+        // geri almaz, yalnızca günlüğe düşer.
+        if (order.customer_id) {
+          try {
+            await earnPointsForOrder({
+              tenantId: user.tenantId,
+              orderId: input.orderId,
+              customerId: order.customer_id,
+              paidLira: toLira(updated.total),
+              userId: user.userId,
+            });
+          } catch (loyaltyError) {
+            console.error(`Puan kazandırılamadı (adisyon ${input.orderId}):`, loyaltyError);
+          }
         }
       }
     }

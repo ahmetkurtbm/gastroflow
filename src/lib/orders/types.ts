@@ -103,5 +103,6 @@ export type MenuCategory = {
     name: string;
     price: number | null;
     modifierGroups: MenuModifierGroup[];
+    imageUrl: string | null;
   }[];
 };

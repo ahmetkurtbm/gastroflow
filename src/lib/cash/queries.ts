@@ -1,4 +1,4 @@
-import { compare, money, subtract, ZERO, type Money } from "@/core/money";
+import { compare, money, subtract, toLira, ZERO, type Money } from "@/core/money";
 import { applyLineDiscount, pickActiveDiscount, type LineDiscountView } from "@/lib/orders/types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -161,6 +161,12 @@ export type OrderForPayment = {
     total: number;
   }[];
   payments: PaymentView[];
+  /** Satır toplamı, kupon/puan indirimi UYGULANMADAN ÖNCE — `applyCouponToOrder`
+   * indirimi bunun üzerinden hesaplıyor. */
+  subtotal: Money;
+  coupon: { code: string; discount: Money } | null;
+  pointsRedeemed: { points: number; discount: Money } | null;
+  /** Satır toplamı EKSİ kupon EKSİ puan indirimi — kasiyerin tahsil ettiği/edeceği tutar budur. */
   total: Money;
   paid: Money;
   remaining: Money;
@@ -169,13 +175,26 @@ export type OrderForPayment = {
 export async function loadOrderForPayment(orderId: string): Promise<OrderForPayment | null> {
   const supabase = await createClient();
 
-  const { data: order } = await supabase
-    .from("orders")
-    .select(
-      `id, order_no, guest_count, status, tables(name), order_lines(quantity, unit_price, menu_items(name), order_line_modifiers(name, price_delta), ${DISCOUNT_SELECT}), payments(id, method, amount, received_at)`,
-    )
-    .eq("id", orderId)
-    .maybeSingle();
+  const [{ data: order }, { data: couponRedemption }, { data: pointsRedemption }] = await Promise.all([
+    supabase
+      .from("orders")
+      .select(
+        `id, order_no, guest_count, status, tables(name), order_lines(quantity, unit_price, menu_items(name), order_line_modifiers(name, price_delta), ${DISCOUNT_SELECT}), payments(id, method, amount, received_at)`,
+      )
+      .eq("id", orderId)
+      .maybeSingle(),
+    supabase
+      .from("coupon_redemptions")
+      .select("discount_amount, coupons(code)")
+      .eq("order_id", orderId)
+      .maybeSingle(),
+    supabase
+      .from("loyalty_transactions")
+      .select("points_delta")
+      .eq("order_id", orderId)
+      .eq("kind", "redeem")
+      .maybeSingle(),
+  ]);
 
   if (!order) return null;
 
@@ -198,7 +217,26 @@ export async function loadOrderForPayment(orderId: string): Promise<OrderForPaym
     };
   });
 
-  const total = money(lines.reduce((sum, l) => sum + l.total, 0));
+  const subtotal = money(lines.reduce((sum, l) => sum + l.total, 0));
+
+  const coupon = couponRedemption
+    ? { code: couponRedemption.coupons?.code ?? "?", discount: money(toNumber(couponRedemption.discount_amount)) }
+    : null;
+  const pointsRedeemed = pointsRedemption
+    ? {
+        points: -pointsRedemption.points_delta,
+        // 1 puan = 1 TL — bkz. `POINTS_PER_LIRA_SPENT` (src/lib/loyalty/actions.ts)
+        // yanındaki aynı sabit için gerekçe. "use server" dosyası yalnızca
+        // async fonksiyon export edebildiği için sabiti buraya taşıyamadık.
+        discount: money(-pointsRedemption.points_delta),
+      }
+    : null;
+
+  const discountTotal = money(
+    (coupon ? toLira(coupon.discount) : 0) + (pointsRedeemed ? toLira(pointsRedeemed.discount) : 0),
+  );
+  const total = compare(subtotal, discountTotal) > 0 ? subtract(subtotal, discountTotal) : ZERO;
+
   const paid = money(
     (order.payments ?? []).reduce((sum, p) => sum + toNumber(p.amount), 0),
   );
@@ -218,6 +256,9 @@ export async function loadOrderForPayment(orderId: string): Promise<OrderForPaym
         receivedAt: p.received_at,
       }))
       .sort((a, b) => a.receivedAt.localeCompare(b.receivedAt)),
+    subtotal,
+    coupon,
+    pointsRedeemed,
     total,
     paid,
     remaining: compare(total, paid) > 0 ? subtract(total, paid) : ZERO,

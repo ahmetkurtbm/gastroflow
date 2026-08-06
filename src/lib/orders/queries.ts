@@ -145,7 +145,7 @@ export async function loadSellableMenu(
   let itemsQuery = supabase
     .from("menu_items")
     .select(
-      "id, name, category_id, modifier_groups(id, name, min_select, max_select, sort_order, modifiers(id, name, price_delta, sort_order, is_active))",
+      "id, name, category_id, image_url, modifier_groups(id, name, min_select, max_select, sort_order, modifiers(id, name, price_delta, sort_order, is_active))",
     )
     .eq("is_active", true);
   let pricesQuery = supabase
@@ -199,6 +199,7 @@ export async function loadSellableMenu(
       name: item.name,
       price: priceByItem.get(item.id) ?? null,
       modifierGroups,
+      imageUrl: item.image_url,
     });
     itemsByCategory.set(item.category_id, list);
   }

@@ -66,6 +66,13 @@ export default async function SettingsPage() {
           Salon ve masalar
           <span className="text-ink-muted">→</span>
         </Link>
+        <Link
+          href="/settings/kuponlar"
+          className="flex items-center justify-between rounded-xl border border-line bg-surface-raised px-4 py-3 text-sm font-medium text-ink transition-colors hover:border-brand-400"
+        >
+          Kuponlar
+          <span className="text-ink-muted">→</span>
+        </Link>
       </div>
 
       <section className="rounded-xl border border-line bg-surface-raised">

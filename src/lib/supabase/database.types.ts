@@ -330,6 +330,137 @@ export type Database = {
           },
         ]
       }
+      coupon_redemptions: {
+        Row: {
+          coupon_id: string
+          created_at: string
+          discount_amount: number
+          id: string
+          order_id: string
+          redeemed_by: string | null
+          tenant_id: string
+        }
+        Insert: {
+          coupon_id: string
+          created_at?: string
+          discount_amount: number
+          id?: string
+          order_id: string
+          redeemed_by?: string | null
+          tenant_id: string
+        }
+        Update: {
+          coupon_id?: string
+          created_at?: string
+          discount_amount?: number
+          id?: string
+          order_id?: string
+          redeemed_by?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coupon_redemptions_coupon_id_fkey"
+            columns: ["coupon_id"]
+            isOneToOne: false
+            referencedRelation: "coupons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coupon_redemptions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coupon_redemptions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coupons: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          kind: string
+          max_uses: number | null
+          tenant_id: string
+          updated_at: string
+          valid_until: string | null
+          value: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          kind: string
+          max_uses?: number | null
+          tenant_id: string
+          updated_at?: string
+          valid_until?: string | null
+          value: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          kind?: string
+          max_uses?: number | null
+          tenant_id?: string
+          updated_at?: string
+          valid_until?: string | null
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coupons_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customers: {
+        Row: {
+          created_at: string
+          id: string
+          name: string | null
+          phone: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          phone: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          phone?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inventory_items: {
         Row: {
           base_unit: string
@@ -479,6 +610,61 @@ export type Database = {
           },
         ]
       }
+      loyalty_transactions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          customer_id: string
+          id: string
+          kind: string
+          order_id: string | null
+          points_delta: number
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          customer_id: string
+          id?: string
+          kind: string
+          order_id?: string | null
+          points_delta: number
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string
+          id?: string
+          kind?: string
+          order_id?: string | null
+          points_delta?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loyalty_transactions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loyalty_transactions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loyalty_transactions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       memberships: {
         Row: {
           branch_id: string | null
@@ -533,6 +719,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          image_url: string | null
           is_active: boolean
           name: string
           sort_order: number
@@ -544,6 +731,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          image_url?: string | null
           is_active?: boolean
           name: string
           sort_order?: number
@@ -555,6 +743,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          image_url?: string | null
           is_active?: boolean
           name?: string
           sort_order?: number
@@ -1022,6 +1211,7 @@ export type Database = {
           client_key: string
           closed_at: string | null
           created_at: string
+          customer_id: string | null
           guest_count: number | null
           id: string
           note: string | null
@@ -1039,6 +1229,7 @@ export type Database = {
           client_key: string
           closed_at?: string | null
           created_at?: string
+          customer_id?: string | null
           guest_count?: number | null
           id?: string
           note?: string | null
@@ -1056,6 +1247,7 @@ export type Database = {
           client_key?: string
           closed_at?: string | null
           created_at?: string
+          customer_id?: string | null
           guest_count?: number | null
           id?: string
           note?: string | null
@@ -1073,6 +1265,13 @@ export type Database = {
             columns: ["branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
             referencedColumns: ["id"]
           },
           {
@@ -1867,6 +2066,29 @@ export type Database = {
       }
     }
     Views: {
+      v_customer_points: {
+        Row: {
+          balance: number | null
+          customer_id: string | null
+          tenant_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loyalty_transactions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loyalty_transactions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_low_stock: {
         Row: {
           balance: number | null

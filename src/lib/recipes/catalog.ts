@@ -36,6 +36,8 @@ export type RecipeSummary = {
   sellingPrice: number | null;
   /** Satılan bir ürün mü, yoksa yarı mamul mü? */
   isSubRecipe: boolean;
+  /** Menü ürününün fotoğrafı (varsa) — bkz. migration 0014. */
+  imageUrl: string | null;
 };
 
 export type CatalogSnapshot = {
@@ -75,7 +77,7 @@ export async function loadCatalog(
 ): Promise<CatalogSnapshot> {
   const supabase = options.client ?? (await createClient());
 
-  const [itemsResult, conversionsResult, recipesResult, versionsResult, pricesResult] =
+  const [itemsResult, conversionsResult, recipesResult, versionsResult, pricesResult, menuItemsResult] =
     await Promise.all([
       supabase
         .from("inventory_items")
@@ -95,6 +97,7 @@ export async function loadCatalog(
         .from("menu_prices")
         .select("menu_item_id, price, valid_from")
         .order("valid_from", { ascending: false }),
+      supabase.from("menu_items").select("id, image_url"),
     ]);
 
   const conversionsByItem = new Map<string, UnitConversion[]>();
@@ -127,6 +130,9 @@ export async function loadCatalog(
 
   const recipeMeta = new Map(
     (recipesResult.data ?? []).map((row) => [row.id, row] as const),
+  );
+  const imageUrlByMenuItem = new Map(
+    (menuItemsResult.data ?? []).map((row) => [row.id, row.image_url] as const),
   );
 
   const recipes: Recipe[] = [];
@@ -189,6 +195,7 @@ export async function loadCatalog(
         ? (priceByMenuItem.get(meta.menu_item_id) ?? null)
         : null,
       isSubRecipe: meta.menu_item_id === null,
+      imageUrl: meta.menu_item_id ? (imageUrlByMenuItem.get(meta.menu_item_id) ?? null) : null,
     });
   }
 

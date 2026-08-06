@@ -14,6 +14,8 @@ import {
 import { formatQuantity } from "@/core/units";
 import { loadCatalog } from "@/lib/recipes/catalog";
 
+import { ImageUploadForm } from "./image-upload-form";
+
 export const metadata: Metadata = { title: "Reçete maliyeti" };
 
 const percentFormatter = new Intl.NumberFormat("tr-TR", {
@@ -154,7 +156,11 @@ export default async function RecipeDetailPage({
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {summary.menuItemId ? (
+        <ImageUploadForm menuItemId={summary.menuItemId} imageUrl={summary.imageUrl} />
+      ) : null}
+
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Tile label="Toplam maliyet" value={formatMoney(money(breakdown.totalCost))} />
         <Tile
           label={`Birim (${summary.yieldUnit})`}

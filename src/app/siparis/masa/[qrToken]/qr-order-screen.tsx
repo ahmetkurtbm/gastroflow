@@ -148,8 +148,12 @@ export function QrOrderScreen({
                     key={item.id}
                     type="button"
                     onClick={() => addItem(item)}
-                    className="flex flex-col items-start gap-1 rounded-xl border border-line bg-surface-raised p-3 text-left transition-colors hover:border-brand-400"
+                    className="flex flex-col items-start gap-1.5 rounded-xl border border-line bg-surface-raised p-3 text-left transition-colors hover:border-brand-400"
                   >
+                    {item.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- tenant tarafından yüklenen değişken sayıda görsel
+                      <img src={item.imageUrl} alt="" className="h-20 w-full rounded-lg object-cover" />
+                    ) : null}
                     <span className="text-sm font-medium text-ink">{item.name}</span>
                     <span className="text-xs tabular-nums text-ink-muted">
                       {formatMoney(money(item.price ?? 0))}

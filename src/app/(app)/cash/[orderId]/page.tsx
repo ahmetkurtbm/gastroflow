@@ -6,7 +6,10 @@ import { allocate, formatMoney, isZero, money, toLira } from "@/core/money";
 import { requireAppUser } from "@/lib/auth/current-user";
 import { loadOrderForPayment } from "@/lib/cash/queries";
 import { getServerDictionary } from "@/lib/i18n/server";
+import { loadCustomerForOrder } from "@/lib/loyalty/queries";
 
+import { CouponBox } from "./coupon-box";
+import { LoyaltyBox } from "./loyalty-box";
 import { PaymentForm } from "./payment-form";
 
 export const metadata: Metadata = { title: "Ödeme" };
@@ -29,6 +32,7 @@ export default async function PaymentPage({
   const [order, { dict }] = await Promise.all([loadOrderForPayment(orderId), getServerDictionary()]);
   if (!order) notFound();
 
+  const customer = await loadCustomerForOrder(orderId);
   const isClosed = order.status !== "open";
 
   // Kalan bakiyeyi 2/3/4 kişiye böl ve ilk payı öner. money.allocate
@@ -112,13 +116,53 @@ export default async function PaymentPage({
             );
           })}
         </ul>
-        <div className="flex items-center justify-between border-t border-line px-4 py-3">
-          <span className="text-sm font-semibold text-ink">Toplam</span>
-          <span className="text-lg font-bold tabular-nums text-ink">
-            {formatMoney(order.total)}
-          </span>
+        <div className="space-y-1 border-t border-line px-4 py-3">
+          {order.coupon || order.pointsRedeemed ? (
+            <div className="flex items-center justify-between text-sm text-ink-muted">
+              <span>Ara toplam</span>
+              <span className="tabular-nums">{formatMoney(order.subtotal)}</span>
+            </div>
+          ) : null}
+          {order.coupon ? (
+            <div className="flex items-center justify-between text-sm text-ok">
+              <span>Kupon {order.coupon.code}</span>
+              <span className="tabular-nums">−{formatMoney(order.coupon.discount)}</span>
+            </div>
+          ) : null}
+          {order.pointsRedeemed ? (
+            <div className="flex items-center justify-between text-sm text-ok">
+              <span>{order.pointsRedeemed.points} puan</span>
+              <span className="tabular-nums">−{formatMoney(order.pointsRedeemed.discount)}</span>
+            </div>
+          ) : null}
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-ink">Toplam</span>
+            <span className="text-lg font-bold tabular-nums text-ink">
+              {formatMoney(order.total)}
+            </span>
+          </div>
         </div>
       </section>
+
+      {!isClosed ? (
+        <section className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl border border-line bg-surface-raised p-4">
+            <h2 className="mb-2 text-sm font-semibold text-ink">Kupon</h2>
+            <CouponBox
+              orderId={order.id}
+              coupon={order.coupon ? { code: order.coupon.code, discount: toLira(order.coupon.discount) } : null}
+            />
+          </div>
+          <div className="rounded-xl border border-line bg-surface-raised p-4">
+            <h2 className="mb-2 text-sm font-semibold text-ink">Sadakat</h2>
+            <LoyaltyBox
+              orderId={order.id}
+              customer={customer ? { phone: customer.phone, name: customer.name, pointsBalance: customer.pointsBalance } : null}
+              alreadyRedeemed={order.pointsRedeemed !== null}
+            />
+          </div>
+        </section>
+      ) : null}
 
       {order.payments.length > 0 ? (
         <section className="mt-4 rounded-xl border border-line bg-surface-raised p-4">

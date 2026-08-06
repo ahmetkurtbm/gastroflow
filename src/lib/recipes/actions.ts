@@ -468,3 +468,88 @@ export async function createDraftVersion(formData: FormData) {
   revalidatePath("/recipes", "layout");
   redirect(`/recipes/${recipeId}/duzenle`);
 }
+
+// -----------------------------------------------------------------------------
+// Ürün görseli
+// -----------------------------------------------------------------------------
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+/**
+ * Menü ürününe görsel yükler (POS ızgarası + QR menü ikisi de gösteriyor).
+ *
+ * Storage RLS zaten `is_manager()` istiyor (bkz. migration 0014) — buradaki
+ * kontrol yetki için değil, RLS'in reddettiği bir yüklemeyi anlaşılır bir
+ * hataya çevirmek için (aksi hâlde kullanıcı yalnızca "storage error" görür).
+ * Yol `${tenantId}/${menuItemId}.${ext}` — `upsert: true` ile eski görseli
+ * SESSİZCE değiştiriyor, ayrı bir "önce sil" adımına gerek yok.
+ */
+export async function uploadMenuItemImage(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const menuItemId = z.uuid().parse(formData.get("menuItemId"));
+    const file = formData.get("file");
+    if (!(file instanceof File) || file.size === 0) {
+      return { error: "Bir görsel seç." };
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      return { error: "Görsel 5 MB'tan büyük olamaz." };
+    }
+    const ext = ALLOWED_IMAGE_TYPES[file.type];
+    if (!ext) {
+      return { error: "Yalnızca JPEG, PNG veya WEBP kabul edilir." };
+    }
+
+    const user = await requireAppUser();
+    if (user.role !== "owner" && user.role !== "manager") {
+      return { error: "Bu işlem için müdür/patron yetkisi gerekli." };
+    }
+    const supabase = await createClient();
+
+    const path = `${user.tenantId}/${menuItemId}.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from("menu-images")
+      .upload(path, file, { upsert: true, contentType: file.type });
+    if (uploadError) return { error: uploadError.message };
+
+    const { data: publicUrlData } = supabase.storage.from("menu-images").getPublicUrl(path);
+    // Aynı yola tekrar yüklense de public URL DEĞİŞMEZ (CDN önbelleği eski
+    // görseli gösterebilir) — sorgu string'ine zaman damgası ekleyerek
+    // önbelleği kırıyoruz.
+    const cacheBustedUrl = `${publicUrlData.publicUrl}?v=${Date.now()}`;
+
+    const { error: updateError } = await supabase
+      .from("menu_items")
+      .update({ image_url: cacheBustedUrl })
+      .eq("id", menuItemId);
+    if (updateError) return { error: updateError.message };
+  } catch (error) {
+    return fail(error);
+  }
+
+  revalidatePath("/recipes", "layout");
+  revalidatePath("/pos", "layout");
+  return { ok: true };
+}
+
+/** Menü ürününün görselini kaldırır — dosyayı silmiyor, yalnızca bağlantıyı kesiyor. */
+export async function removeMenuItemImage(formData: FormData) {
+  const menuItemId = z.uuid().parse(formData.get("menuItemId"));
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("menu_items")
+    .update({ image_url: null })
+    .eq("id", menuItemId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/recipes", "layout");
+  revalidatePath("/pos", "layout");
+}
