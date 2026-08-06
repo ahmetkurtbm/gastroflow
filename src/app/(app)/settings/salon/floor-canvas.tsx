@@ -94,10 +94,53 @@ export function FloorCanvas({ tables }: { tables: FloorTableAdmin[] }) {
 
   return (
     <div className="space-y-3">
+      {/* Sürükle-bırak, yüzde tabanlı x/y konumlar üzerinden çalışıyor — geniş
+          bir masaüstü canvas'ı için düşünülmüş. Dar bir telefon ekranında aynı
+          konumlar kutuları üst üste bindiriyordu (yatay bir yerleşimi dar bir
+          dikey şeride sıkıştırmaya çalışmak gibi) — hem sürüklemek dokunmatikte
+          zor hem de kutular çakışıyordu. Mobilde bu yüzden canvas yerine düz,
+          tek sütunlu bir liste gösteriyoruz (konum yalnızca masaüstünden
+          değiştirilebilir); tablet/masaüstünde canvas geri geliyor. */}
+      {placed.length > 0 ? (
+        <ul className="divide-y divide-line rounded-xl border border-line bg-surface-raised text-sm sm:hidden">
+          {placed.map((table) => (
+            <li key={table.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+              <span className="text-ink">
+                {table.name} <span className="text-ink-muted">· {table.seats} kişilik</span>
+              </span>
+              <span className="flex shrink-0 items-center gap-2">
+                <form action={toggleTableOrientation}>
+                  <input type="hidden" name="id" value={table.id} />
+                  <input type="hidden" name="isVertical" value={String(table.isVertical)} />
+                  <button
+                    type="submit"
+                    className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted hover:text-ink"
+                  >
+                    {table.isVertical ? "Dikey" : "Yatay"}
+                  </button>
+                </form>
+                <form
+                  action={unplaceTable}
+                  onSubmit={() => setPositions((prev) => ({ ...prev, [table.id]: null }))}
+                >
+                  <input type="hidden" name="id" value={table.id} />
+                  <button
+                    type="submit"
+                    className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted hover:text-ink"
+                  >
+                    Yerleştirilmemiş yap
+                  </button>
+                </form>
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
       <div
         ref={canvasRef}
         onClick={handleCanvasClick}
-        className={`relative h-72 w-full rounded-xl border-2 border-dashed bg-surface bg-[radial-gradient(circle,theme(colors.line)_1px,transparent_1px)] bg-[length:20px_20px] ${
+        className={`relative hidden h-72 w-full rounded-xl border-2 border-dashed bg-surface bg-[radial-gradient(circle,theme(colors.line)_1px,transparent_1px)] bg-[length:20px_20px] sm:block ${
           selectedUnplacedId ? "cursor-crosshair border-brand-400" : "border-line"
         }`}
       >
@@ -155,7 +198,10 @@ export function FloorCanvas({ tables }: { tables: FloorTableAdmin[] }) {
 
       {unplaced.length > 0 ? (
         <div className="rounded-lg border border-line bg-surface-raised p-3">
-          <p className="mb-2 text-xs text-ink-muted">
+          <p className="mb-2 text-xs text-ink-muted sm:hidden">
+            Yerleştirilmemiş masalar — konumlandırmak için tablet/masaüstü genişliğinde bir ekran kullan:
+          </p>
+          <p className="mb-2 hidden text-xs text-ink-muted sm:block">
             {selectedUnplacedId
               ? "Şimdi yukarıdaki canvas'a dokunarak yerleştir."
               : "Yerleştirilmemiş masalar — birine dokun, sonra canvas'ta yerini seç:"}

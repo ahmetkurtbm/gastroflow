@@ -119,21 +119,34 @@ export default async function PosFloorPlanPage() {
                     {area.name}
                   </h2>
                   {placed.length > 0 ? (
-                    <div className="relative h-80 w-full rounded-xl border border-line bg-surface-raised">
-                      {placed.map((table) => (
-                        <div
-                          key={table.id}
-                          style={{
-                            left: `${table.posX}%`,
-                            top: `${table.posY}%`,
-                            ...seatBoxSize(table.seats, table.isVertical),
-                          }}
-                          className="absolute -translate-x-1/2 -translate-y-1/2"
-                        >
-                          <TableCard table={table} dict={dict.pos} compact />
-                        </div>
-                      ))}
-                    </div>
+                    <>
+                      {/* Yüzde tabanlı x/y konumlar geniş bir masaüstü canvas'ı
+                          için düşünülmüş — dar bir telefon ekranında aynı
+                          oranlar kutuları üst üste bindiriyordu (yatay
+                          yerleşimi dikeye sıkıştırmaya çalışmak gibi). Mobilde
+                          canvas yerine düz, tek sütunlu bir liste gösteriyoruz;
+                          masaüstünde canvas geri geliyor. */}
+                      <div className="relative hidden h-80 w-full rounded-xl border border-line bg-surface-raised sm:block">
+                        {placed.map((table) => (
+                          <div
+                            key={table.id}
+                            style={{
+                              left: `${table.posX}%`,
+                              top: `${table.posY}%`,
+                              ...seatBoxSize(table.seats, table.isVertical),
+                            }}
+                            className="absolute -translate-x-1/2 -translate-y-1/2"
+                          >
+                            <TableCard table={table} dict={dict.pos} compact />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 sm:hidden">
+                        {placed.map((table) => (
+                          <TableCard key={table.id} table={table} dict={dict.pos} />
+                        ))}
+                      </div>
+                    </>
                   ) : null}
 
                   {unplaced.length > 0 ? (
