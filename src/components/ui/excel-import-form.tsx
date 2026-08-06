@@ -20,8 +20,9 @@ export function ExcelImportForm({
   action: (previous: ImportResult, formData: FormData) => Promise<ImportResult>;
   /** Boş, örnek satırlı şablon — ilk kurulum için. */
   templateHref: string;
-  /** Mevcut veriyi aynı formatta indirir — toplu düzenleyip geri yüklemek için. */
-  exportHref: string;
+  /** Mevcut veriyi aynı formatta indirir — toplu düzenleyip geri yüklemek için.
+   * Yoksa (ör. körleme sayım) yalnızca şablon linki gösterilir. */
+  exportHref?: string;
   /** Tedarikçi/şube gibi, dosyanın kendisinde OLMAYAN ama eylemin ihtiyaç
    * duyduğu bağlam — ör. hangi tedarikçinin fiyat listesi olduğu. */
   hiddenFields?: Record<string, string>;
@@ -34,9 +35,11 @@ export function ExcelImportForm({
         <a href={templateHref} className="text-brand-700 underline underline-offset-2">
           Boş şablon indir
         </a>
-        <a href={exportHref} className="text-brand-700 underline underline-offset-2">
-          Mevcut listeyi indir (toplu düzenlemek için)
-        </a>
+        {exportHref ? (
+          <a href={exportHref} className="text-brand-700 underline underline-offset-2">
+            Mevcut listeyi indir (toplu düzenlemek için)
+          </a>
+        ) : null}
       </div>
       <form action={formAction} className="flex flex-wrap items-center gap-2">
         {hiddenFields
@@ -65,7 +68,9 @@ export function ExcelImportForm({
       ) : null}
       {state.ok ? (
         <p className="text-xs text-ok">
-          {state.created ?? 0} yeni, {state.updated ?? 0} güncellendi.
+          {state.created ?? 0} yeni
+          {state.updated !== undefined ? `, ${state.updated} güncellendi` : ""}
+          {state.skipped ? `, ${state.skipped} atlandı` : ""}.
         </p>
       ) : null}
     </div>

@@ -106,6 +106,12 @@ export default async function ShiftsSettingsPage({
             <Link href={`/settings/vardiyalar?week=${nextWeek}`} className="text-ink-muted hover:text-ink">
               Sonraki →
             </Link>
+            <a
+              href={`/api/export/vardiya?week=${weekStart}`}
+              className="text-brand-700 underline underline-offset-2"
+            >
+              Excel indir (WhatsApp&apos;tan paylaş)
+            </a>
           </div>
         </div>
 

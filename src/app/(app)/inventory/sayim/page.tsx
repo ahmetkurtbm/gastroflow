@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ExcelImportForm } from "@/components/ui/excel-import-form";
+import { importStockCount } from "@/lib/inventory/actions";
 import { loadStockPickLists } from "@/lib/inventory/queries";
 
 import { CountForm } from "./count-form";
@@ -70,7 +72,20 @@ export default async function CountPage({
           Önce hammadde tanımlamalısın.
         </p>
       ) : (
-        <CountForm locationId={selectedLocation.id} items={picks.items} />
+        <>
+          <CountForm locationId={selectedLocation.id} items={picks.items} />
+
+          <section className="mt-6 rounded-xl border border-line bg-surface-raised">
+            <h2 className="border-b border-line px-4 py-3 text-sm font-semibold text-ink">
+              Kağıtta/Excel&apos;de sayıldıysa, toplu yükle
+            </h2>
+            <ExcelImportForm
+              action={importStockCount}
+              templateHref="/api/export/sayim-sablonu"
+              hiddenFields={{ locationId: selectedLocation.id }}
+            />
+          </section>
+        </>
       )}
     </div>
   );

@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireAppUser } from "@/lib/auth/current-user";
+import { parseWorkbookRows, type ImportResult } from "@/lib/excel/workbook";
 import { createClient } from "@/lib/supabase/server";
 
 export type ActionState = { error?: string; ok?: boolean };
@@ -272,4 +273,110 @@ export async function recordCount(
 
   revalidatePath("/inventory", "layout");
   return { ok: true };
+}
+
+const importCountRowSchema = z.object({
+  itemName: z.string().trim().min(1).max(120),
+  counted: z.coerce.number().min(0),
+});
+
+/**
+ * Fiziksel sayımı Excel'den toplu içe aktarır — bazı işletmeler sayımı
+ * kağıtta/Excel'de yapıp sonradan sisteme giriyor (bkz. `/api/export/sayim-sablonu`).
+ *
+ * `recordCount`'la AYNI körleme mantığı ve AYNI fark hesabı — şablon sistemdeki
+ * bakiyeyi göstermiyor, yalnızca hammadde adı ve boş bir "Sayılan Miktar"
+ * sütunu var. Fark, sunucu tarafında sayılanla mevcut bakiye arasından
+ * hesaplanıp `count_adjustment` hareketi olarak yazılıyor — tek satır bile
+ * elle girilenle davranış açısından ayırt edilemez.
+ */
+export async function importStockCount(
+  _previous: ImportResult,
+  formData: FormData,
+): Promise<ImportResult> {
+  try {
+    const locationId = z.uuid().parse(formData.get("locationId"));
+    const file = formData.get("file");
+    if (!(file instanceof File) || file.size === 0) {
+      return { error: "Bir dosya seç." };
+    }
+
+    const rows = await parseWorkbookRows(file);
+    if (rows.length === 0) return { error: "Dosyada satır bulunamadı." };
+
+    const user = await requireAppUser();
+    const supabase = await createClient();
+    const batchId = randomUUID();
+
+    const { data: location } = await supabase
+      .from("stock_locations")
+      .select("id, branch_id")
+      .eq("id", locationId)
+      .maybeSingle();
+    if (!location) return { error: "Lokasyon bulunamadı." };
+
+    const [{ data: items }, { data: balances }] = await Promise.all([
+      supabase.from("inventory_items").select("id, name").eq("tenant_id", user.tenantId).eq("is_active", true),
+      supabase.from("v_stock_balance").select("inventory_item_id, balance").eq("location_id", locationId),
+    ]);
+    const itemIdByName = new Map((items ?? []).map((i) => [i.name.trim().toLowerCase(), i.id]));
+    const balanceByItem = new Map((balances ?? []).map((b) => [b.inventory_item_id, Number(b.balance)]));
+
+    const movementRows: {
+      tenant_id: string;
+      branch_id: string;
+      location_id: string;
+      inventory_item_id: string;
+      movement_type: "count_adjustment";
+      quantity: number;
+      note: string;
+      created_by: string;
+      reference_type: string;
+      reference_id: string;
+    }[] = [];
+    let skipped = 0;
+
+    for (const row of rows) {
+      const parsed = importCountRowSchema.safeParse({
+        itemName: row["Hammadde Adı"],
+        counted: row["Sayılan Miktar"],
+      });
+      if (!parsed.success) {
+        skipped++;
+        continue;
+      }
+      const inventoryItemId = itemIdByName.get(parsed.data.itemName.trim().toLowerCase());
+      if (!inventoryItemId) {
+        skipped++;
+        continue;
+      }
+
+      const current = balanceByItem.get(inventoryItemId) ?? 0;
+      const delta = parsed.data.counted - current;
+      if (Math.abs(delta) < 1e-9) continue;
+
+      movementRows.push({
+        tenant_id: user.tenantId,
+        branch_id: location.branch_id,
+        location_id: locationId,
+        inventory_item_id: inventoryItemId,
+        movement_type: "count_adjustment",
+        quantity: delta,
+        note: `Sayım (Excel): sistemde ${current}, sayılan ${parsed.data.counted}`,
+        created_by: user.userId,
+        reference_type: "stock_count",
+        reference_id: batchId,
+      });
+    }
+
+    if (movementRows.length > 0) {
+      const { error } = await supabase.from("stock_movements").insert(movementRows);
+      if (error) return { error: error.message };
+    }
+
+    revalidatePath("/inventory", "layout");
+    return { ok: true, created: movementRows.length, skipped };
+  } catch (error) {
+    return fail(error);
+  }
 }
