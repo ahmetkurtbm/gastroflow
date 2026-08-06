@@ -2031,6 +2031,7 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean
+          is_vertical: boolean
           name: string
           pos_x: number | null
           pos_y: number | null
@@ -2045,6 +2046,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          is_vertical?: boolean
           name: string
           pos_x?: number | null
           pos_y?: number | null
@@ -2059,6 +2061,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          is_vertical?: boolean
           name?: string
           pos_x?: number | null
           pos_y?: number | null

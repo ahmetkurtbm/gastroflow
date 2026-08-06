@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { formatMoney, money } from "@/core/money";
+import { closeZeroOrder } from "@/lib/cash/actions";
 import { requireAppUser } from "@/lib/auth/current-user";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
 import { getServerDictionary } from "@/lib/i18n/server";
@@ -20,13 +21,13 @@ function minutesSince(iso: string): number {
 /**
  * Yerleşim canvas'ında masanın kutusu kişi sayısına göre büyür — 2 kişilik
  * bir masayla 10 kişilik bir masa gerçek salonda aynı yer kaplamıyor,
- * canvas'ta da aynı görünmemeli (bkz. `/settings/salon`'daki aynı ölçek).
+ * canvas'ta da aynı görünmemeli. `vertical` masayı duvara dik döndürür
+ * (bkz. `/settings/salon`'daki aynı ölçek + yön ayarı, migration 0019).
  */
-function seatBoxWidth(seats: number): string {
-  if (seats <= 2) return "5rem";
-  if (seats <= 4) return "6.5rem";
-  if (seats <= 8) return "8rem";
-  return "9.5rem";
+function seatBoxSize(seats: number, vertical: boolean): { width: string; minHeight: string } {
+  const long = seats <= 2 ? "5rem" : seats <= 4 ? "6.5rem" : seats <= 8 ? "8rem" : "9.5rem";
+  const short = "3.25rem";
+  return vertical ? { width: short, minHeight: long } : { width: long, minHeight: short };
 }
 
 export default async function PosFloorPlanPage() {
@@ -70,7 +71,7 @@ export default async function PosFloorPlanPage() {
               const minutes = minutesSince(order.openedAt);
               return (
                 <div key={order.id} className="relative">
-                  {order.total === 0 ? <ZeroTotalBadge /> : null}
+                  {order.total === 0 ? <ZeroTotalBadge orderId={order.id} /> : null}
                   <Link
                     href={`/pos/siparis/${order.id}`}
                     className={`flex flex-col items-start gap-1 rounded-xl border p-4 text-left transition-colors ${
@@ -125,7 +126,7 @@ export default async function PosFloorPlanPage() {
                           style={{
                             left: `${table.posX}%`,
                             top: `${table.posY}%`,
-                            width: seatBoxWidth(table.seats),
+                            ...seatBoxSize(table.seats, table.isVertical),
                           }}
                           className="absolute -translate-x-1/2 -translate-y-1/2"
                         >
@@ -150,19 +151,23 @@ export default async function PosFloorPlanPage() {
 }
 
 /**
- * "Bu adisyonda tahsil edilecek bir şey kalmadı, kapatılmayı bekliyor"
- * işareti — tıklanabilir DEĞİL, salt görsel bir uyarı (kapatma işlemi
- * `/cash/[orderId]`'de, `closeZeroOrder`).
+ * "Bu adisyonda tahsil edilecek bir şey kalmadı" rozeti — DOĞRUDAN
+ * tıklanabilir, `/cash`'e gitmeden adisyonu kapatır. Kartı (bir `<Link>`)
+ * saran `relative` div'in İÇİNDE ama ona iç içe DEĞİL kardeş bir eleman —
+ * bir `<button>`'ı bir `<a>`'nın içine koymak geçersiz HTML olurdu.
  */
-function ZeroTotalBadge() {
+function ZeroTotalBadge({ orderId }: { orderId: string }) {
   return (
-    <span
-      aria-hidden
-      title="0 ₺ — kapatılmayı bekliyor"
-      className="absolute -right-1.5 -top-1.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border border-danger/40 bg-surface text-xs font-bold text-danger"
-    >
-      ✕
-    </span>
+    <form action={closeZeroOrder} className="absolute -right-1.5 -top-1.5 z-10">
+      <input type="hidden" name="orderId" value={orderId} />
+      <button
+        type="submit"
+        title="0 ₺ — tıkla, ödeme almadan kapat"
+        className="flex h-5 w-5 items-center justify-center rounded-full border border-danger/40 bg-surface text-xs font-bold text-danger shadow-sm hover:bg-danger/10"
+      >
+        ✕
+      </button>
+    </form>
   );
 }
 
@@ -208,7 +213,7 @@ function TableCard({
 
   return (
     <div className="relative">
-      {openOrder.total === 0 ? <ZeroTotalBadge /> : null}
+      {openOrder.total === 0 ? <ZeroTotalBadge orderId={openOrder.id} /> : null}
       <Link
         href={`/pos/masa/${table.id}`}
         className={`flex flex-col items-start gap-1 rounded-xl border text-left transition-colors ${padding} ${

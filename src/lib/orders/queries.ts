@@ -28,6 +28,7 @@ export type FloorTable = {
   seats: number;
   posX: number | null;
   posY: number | null;
+  isVertical: boolean;
   openOrder: {
     id: string;
     orderNo: number | null;
@@ -56,7 +57,11 @@ export async function loadFloorPlan(): Promise<FloorArea[]> {
 
   const [areasResult, tablesResult, ordersResult] = await Promise.all([
     supabase.from("areas").select("id, name, sort_order").eq("is_active", true).order("sort_order"),
-    supabase.from("tables").select("id, name, seats, area_id, pos_x, pos_y").eq("is_active", true).order("name"),
+    supabase
+      .from("tables")
+      .select("id, name, seats, area_id, pos_x, pos_y, is_vertical")
+      .eq("is_active", true)
+      .order("name"),
     supabase
       .from("orders")
       .select(
@@ -96,6 +101,7 @@ export async function loadFloorPlan(): Promise<FloorArea[]> {
       seats: table.seats,
       posX: table.pos_x === null ? null : Number(table.pos_x),
       posY: table.pos_y === null ? null : Number(table.pos_y),
+      isVertical: table.is_vertical,
       openOrder: orderByTable.get(table.id) ?? null,
     });
     tablesByArea.set(table.area_id, list);

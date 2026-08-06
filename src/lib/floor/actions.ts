@@ -131,6 +131,22 @@ export async function deleteTable(formData: FormData) {
   revalidatePath("/pos");
 }
 
+/** Masayı yatay/dikey arasında çevirir — uzun masalar duvara dik durabiliyor. */
+export async function toggleTableOrientation(formData: FormData) {
+  const id = z.uuid().parse(formData.get("id"));
+  const isVertical = formData.get("isVertical") === "true";
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("tables")
+    .update({ is_vertical: !isVertical })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/settings/salon");
+  revalidatePath("/pos");
+}
+
 const positionSchema = z.object({
   id: z.uuid(),
   x: z.number().min(0).max(100),

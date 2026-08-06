@@ -2,16 +2,15 @@
 
 import { useRef, useState } from "react";
 
-import { unplaceTable, updateTablePosition } from "@/lib/floor/actions";
+import { toggleTableOrientation, unplaceTable, updateTablePosition } from "@/lib/floor/actions";
 import type { FloorTableAdmin } from "@/lib/floor/queries";
 
 /** `/pos`'taki gerçek yerleşim görünümüyle AYNI ölçek — editörde büyük
  * gördüğün masa, garsonun ekranında da büyük görünmeli. */
-function seatBoxWidth(seats: number): string {
-  if (seats <= 2) return "5rem";
-  if (seats <= 4) return "6.5rem";
-  if (seats <= 8) return "8rem";
-  return "9.5rem";
+function seatBoxSize(seats: number, vertical: boolean): { width: string; minHeight: string } {
+  const long = seats <= 2 ? "5rem" : seats <= 4 ? "6.5rem" : seats <= 8 ? "8rem" : "9.5rem";
+  const short = "3.25rem";
+  return vertical ? { width: short, minHeight: long } : { width: long, minHeight: short };
 }
 
 /**
@@ -37,8 +36,23 @@ export function FloorCanvas({ tables }: { tables: FloorTableAdmin[] }) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [selectedUnplacedId, setSelectedUnplacedId] = useState<string | null>(null);
 
-  const placed = tables.filter((t) => positions[t.id] !== null);
-  const unplaced = tables.filter((t) => positions[t.id] === null);
+  // `positions` yalnızca MOUNT'ta kuruluyor (yukarıdaki useState initializer).
+  // Bu bileşen `/settings/salon`'da kalıcı — bir masa eklendiğinde sayfa
+  // yeniden render olur ama React bu bileşeni YENİDEN MOUNT ETMEZ, `tables`
+  // prop'u güncellenir. Yeni masanın `positions`te henüz karşılığı olmadan
+  // `positions[t.id]` `undefined` dönüyordu; eski `!== null` kontrolü bunu
+  // "yerleşmiş" sayıp `pos.x`'e erişmeye çalışıyor, `pos` `undefined` olduğu
+  // için sayfa çöküyordu ("Bu sayfa yüklenemedi" hatasının GERÇEK sebebi).
+  // Effect içinde state senkronize etmek yerine (cascading render riski),
+  // konumu her render'da PROP'TAN türetiyoruz — state yalnızca aktif
+  // sürükleme/yerleştirme sırasında bir ÜST KATMAN olarak devreye giriyor.
+  function positionFor(table: FloorTableAdmin): { x: number; y: number } | null {
+    if (table.id in positions) return positions[table.id];
+    return table.posX !== null && table.posY !== null ? { x: table.posX, y: table.posY } : null;
+  }
+
+  const placed = tables.filter((t) => positionFor(t) !== null);
+  const unplaced = tables.filter((t) => positionFor(t) === null);
 
   function clientToPercent(clientX: number, clientY: number) {
     const rect = canvasRef.current!.getBoundingClientRect();
@@ -96,25 +110,45 @@ export function FloorCanvas({ tables }: { tables: FloorTableAdmin[] }) {
         ) : null}
 
         {placed.map((table) => {
-          const pos = positions[table.id]!;
+          const pos = positionFor(table)!;
+          const size = seatBoxSize(table.seats, table.isVertical);
           return (
-            <button
+            <div
               key={table.id}
-              type="button"
-              onPointerDown={(e) => handleChipPointerDown(table.id, e)}
-              onPointerMove={handleChipPointerMove}
-              onPointerUp={handleChipPointerUp}
-              style={{ left: `${pos.x}%`, top: `${pos.y}%`, width: seatBoxWidth(table.seats) }}
-              className={`absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-lg border-2 bg-surface-raised px-2 py-1.5 text-center shadow-sm ${
-                draggingId === table.id
-                  ? "z-10 cursor-grabbing border-brand-500"
-                  : "cursor-grab border-line hover:border-brand-400"
-              }`}
-              title="Sürükleyerek taşı"
+              className="absolute -translate-x-1/2 -translate-y-1/2"
+              style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
             >
-              <span className="text-xs font-semibold text-ink">{table.name}</span>
-              <span className="text-[10px] text-ink-muted">{table.seats} kişilik</span>
-            </button>
+              <button
+                type="button"
+                onPointerDown={(e) => handleChipPointerDown(table.id, e)}
+                onPointerMove={handleChipPointerMove}
+                onPointerUp={handleChipPointerUp}
+                style={{ width: size.width, minHeight: size.minHeight }}
+                className={`flex flex-col items-center justify-center rounded-lg border-2 bg-surface-raised px-2 py-1.5 text-center shadow-sm ${
+                  draggingId === table.id
+                    ? "z-10 cursor-grabbing border-brand-500"
+                    : "cursor-grab border-line hover:border-brand-400"
+                }`}
+                title="Sürükleyerek taşı"
+              >
+                <span className="text-xs font-semibold text-ink">{table.name}</span>
+                <span className="text-[10px] text-ink-muted">{table.seats} kişilik</span>
+              </button>
+              {/* Sürüklenebilir düğmenin İÇİNDE değil, yanında bir form —
+                  buton içinde buton geçersiz HTML olurdu ve sürükleme
+                  dinleyicileriyle çakışırdı. */}
+              <form action={toggleTableOrientation} className="absolute -right-2 -top-2">
+                <input type="hidden" name="id" value={table.id} />
+                <input type="hidden" name="isVertical" value={String(table.isVertical)} />
+                <button
+                  type="submit"
+                  title="Yönü değiştir (yatay/dikey)"
+                  className="flex h-5 w-5 items-center justify-center rounded-full border border-line bg-surface text-[10px] text-ink-muted shadow-sm hover:text-ink"
+                >
+                  ⟳
+                </button>
+              </form>
+            </div>
           );
         })}
       </div>
