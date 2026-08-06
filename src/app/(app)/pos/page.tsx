@@ -105,22 +105,22 @@ export default async function PosFloorPlanPage() {
           {areas
             .filter((area) => area.tables.length > 0)
             .map((area) => {
-              // Bir alandaki masaların TAMAMI yerleştirilmişse (bkz.
-              // /settings/salon görsel editörü), garson gerçek salon
-              // yerleşimini görsün — ızgara yerine konumlarına göre canvas.
-              // Kısmi yerleşimde ızgaraya düşülür: yarım-yamalak bir canvas
-              // (bazı masalar üst üste sol üstte yığılmış) ızgaradan kötü
-              // olurdu.
-              const allPlaced = area.tables.every((t) => t.posX !== null && t.posY !== null);
+              // `/settings/salon` görsel editörüyle AYNI mantık: yerleştirilmiş
+              // masalar her zaman canvas'ta kendi konumunda görünür — masa
+              // sayısı ne olursa olsun ızgaraya (sırayla dizilmeye) DÜŞMEZ.
+              // Yalnızca henüz hiç yerleştirilmemiş masalar (editörde de aynı
+              // ada sahip "yerleştirilmemiş" listesi) altta ayrı gösterilir.
+              const placed = area.tables.filter((t) => t.posX !== null && t.posY !== null);
+              const unplaced = area.tables.filter((t) => t.posX === null || t.posY === null);
 
               return (
                 <section key={area.id}>
                   <h2 className="mb-3 text-sm font-semibold text-ink-muted">
                     {area.name}
                   </h2>
-                  {allPlaced ? (
+                  {placed.length > 0 ? (
                     <div className="relative h-80 w-full rounded-xl border border-line bg-surface-raised">
-                      {area.tables.map((table) => (
+                      {placed.map((table) => (
                         <div
                           key={table.id}
                           style={{
@@ -134,13 +134,26 @@ export default async function PosFloorPlanPage() {
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                      {area.tables.map((table) => (
-                        <TableCard key={table.id} table={table} dict={dict.pos} />
-                      ))}
+                  ) : null}
+
+                  {unplaced.length > 0 ? (
+                    <div className={placed.length > 0 ? "mt-3" : undefined}>
+                      {placed.length > 0 ? (
+                        <p className="mb-2 text-xs text-ink-muted">
+                          Henüz yerleştirilmemiş — konumu{" "}
+                          <Link href="/settings/salon" className="underline underline-offset-2">
+                            Salon ve masalar
+                          </Link>
+                          &apos;dan ayarlanabilir:
+                        </p>
+                      ) : null}
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                        {unplaced.map((table) => (
+                          <TableCard key={table.id} table={table} dict={dict.pos} />
+                        ))}
+                      </div>
                     </div>
-                  )}
+                  ) : null}
                 </section>
               );
             })}
