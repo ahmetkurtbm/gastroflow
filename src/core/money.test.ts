@@ -5,6 +5,7 @@ import {
   ZERO,
   add,
   allocate,
+  allocateProportional,
   divideToRate,
   formatMoney,
   formatRate,
@@ -128,6 +129,37 @@ describe("allocate", () => {
   it("geçersiz pay sayısını reddeder", () => {
     expect(() => allocate(money(10), 0)).toThrow(MoneyError);
     expect(() => allocate(money(10), 2.5)).toThrow(MoneyError);
+  });
+});
+
+describe("allocateProportional", () => {
+  it("ağırlıklara orantılı, kuruş kaybetmeden böler", () => {
+    // Kombo: 120 TL'lik "Büyük Menü" — normal fiyatları 80 TL (burger) ve
+    // 40 TL (patates) olan iki bileşene 2:1 oranında dağılmalı.
+    const parts = allocateProportional(money(120), [money(80), money(40)]);
+    expect(parts.map(toLira)).toEqual([80, 40]);
+    expect(toLira(add(...parts))).toBe(120);
+  });
+
+  it("tam bölünmeyen oranda artığı en büyük kesire dağıtır, toplam korunur", () => {
+    const parts = allocateProportional(money(100), [money(33), money(33), money(34)]);
+    expect(toLira(add(...parts))).toBe(100);
+  });
+
+  it("tüm ağırlıklar sıfırsa eşit bölüşüme düşer", () => {
+    const parts = allocateProportional(money(90), [ZERO, ZERO, ZERO]);
+    expect(parts.map(toLira)).toEqual([30, 30, 30]);
+  });
+
+  it("indirimli kombo fiyatı bileşen fiyatları toplamından düşük olabilir", () => {
+    // Bileşenler toplamda 100 TL ama kombo 80 TL'ye satılıyor — oran korunur.
+    const parts = allocateProportional(money(80), [money(60), money(40)]);
+    expect(parts.map(toLira)).toEqual([48, 32]);
+    expect(toLira(add(...parts))).toBe(80);
+  });
+
+  it("boş ağırlık listesini reddeder", () => {
+    expect(() => allocateProportional(money(10), [])).toThrow(MoneyError);
   });
 });
 

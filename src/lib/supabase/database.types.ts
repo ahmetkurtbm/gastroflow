@@ -243,6 +243,93 @@ export type Database = {
           },
         ]
       }
+      combo_items: {
+        Row: {
+          combo_id: string
+          created_at: string
+          id: string
+          menu_item_id: string
+          quantity: number
+          tenant_id: string
+        }
+        Insert: {
+          combo_id: string
+          created_at?: string
+          id?: string
+          menu_item_id: string
+          quantity?: number
+          tenant_id: string
+        }
+        Update: {
+          combo_id?: string
+          created_at?: string
+          id?: string
+          menu_item_id?: string
+          quantity?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "combo_items_combo_id_fkey"
+            columns: ["combo_id"]
+            isOneToOne: false
+            referencedRelation: "combos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "combo_items_menu_item_id_fkey"
+            columns: ["menu_item_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "combo_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      combos: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          price: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          price: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          price?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "combos_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inventory_items: {
         Row: {
           base_unit: string

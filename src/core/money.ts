@@ -144,6 +144,48 @@ export function allocate(value: Money, parts: number): Money[] {
   });
 }
 
+/**
+ * Bir tutarı AĞIRLIKLARA ORANTILI, kalansız paylara böler.
+ *
+ * `allocate()`'ten farkı: o eşit böler (hesap bölme — 3 kişiye 33,33+33,33+33,34),
+ * bu ORANTILI böler (kombo/menü kampanyası — "Büyük Menü" 120 TL'yi normalde
+ * 80 TL'lik burger + 40 TL'lik patatese, ağırlıklarıyla orantılı olarak 80+40
+ * yerine kombonun indirimli TOPLAMına göre yeniden ölçeklenmiş halde dağıtır).
+ *
+ * "En büyük artık" (largest remainder) yöntemi: önce her payı aşağı yuvarla,
+ * kalan birimleri en büyük kesirli artığı olan paylara sırayla dağıt. Böylece
+ * toplam her zaman `value`'ya eşit kalır — hiçbir kuruş kaybolmaz/fazla gelmez.
+ * Tüm ağırlıklar sıfırsa (ör. bileşenlerden hiçbirinin fiyatı tanımlı değil)
+ * eşit bölüşüme düşülür.
+ */
+export function allocateProportional(value: Money, weights: readonly Money[]): Money[] {
+  if (weights.length === 0) {
+    throw new MoneyError("En az bir ağırlık gerekli.");
+  }
+
+  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+  if (totalWeight === 0) {
+    return allocate(value, weights.length);
+  }
+
+  const raw = weights.map((w) => (value * w) / totalWeight);
+  const floors = raw.map((r) => Math.floor(r));
+  let remainder = value - floors.reduce((sum, f) => sum + f, 0);
+
+  const order = raw
+    .map((r, index) => ({ index, frac: r - Math.floor(r) }))
+    .sort((a, b) => b.frac - a.frac);
+
+  const result = [...floors];
+  for (const { index } of order) {
+    if (remainder <= 0) break;
+    result[index] += 1;
+    remainder -= 1;
+  }
+
+  return result as Money[];
+}
+
 const formatter = new Intl.NumberFormat("tr-TR", {
   style: "currency",
   currency: "TRY",

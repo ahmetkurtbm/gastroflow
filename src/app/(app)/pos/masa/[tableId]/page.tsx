@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { loadSellableCombos } from "@/lib/combos/queries";
 import { requireAppUser } from "@/lib/auth/current-user";
 import { openTable } from "@/lib/orders/actions";
 import { loadOpenOrderForTable, loadSellableMenu } from "@/lib/orders/queries";
@@ -49,12 +50,16 @@ export default async function TableOrderPage({
     );
   }
 
-  const categories = await loadSellableMenu(table.branch_id);
+  const [categories, combos] = await Promise.all([
+    loadSellableMenu(table.branch_id),
+    loadSellableCombos(table.branch_id),
+  ]);
 
   return (
     <OrderScreen
       order={order}
       categories={categories}
+      combos={combos}
       tenantId={user.tenantId}
       userId={user.userId}
     />

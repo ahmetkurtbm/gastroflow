@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { allocateProportional, money, toLira } from "@/core/money";
 import { requireAppUser } from "@/lib/auth/current-user";
 import { createClient } from "@/lib/supabase/server";
 
@@ -253,6 +254,129 @@ export async function addOrderLine(
         console.error(`Modifier eklenemedi (satır ${insertedLine.id}):`, modifierError);
       }
     }
+  } catch (error) {
+    return fail(error);
+  }
+
+  revalidatePath("/pos", "layout");
+  return { ok: true };
+}
+
+const addComboSchema = z.object({
+  orderId: z.uuid(),
+  comboId: z.uuid(),
+});
+
+/**
+ * Bir komboyu adisyona ekler.
+ *
+ * Kombo, KENDİ BAŞINA satılabilir bir varlık değil — yalnızca bir
+ * fiyatlandırma kısayolu. Bileşenlerine ayrılıp her biri için SIRADAN bir
+ * `order_lines` satırı açılır (bkz. migration 0012'deki tasarım notu):
+ * stok düşümü, KDS, reçete maliyeti hiçbirinin kombo diye ayrı bir kod yolu
+ * bilmesine gerek kalmaz. Fiyat, kombonun sabit toplamından bileşenlerin
+ * GÜNCEL normal fiyatlarına ORANTILI olarak dağıtılır (`allocateProportional`)
+ * — hesap bölmedeki `allocate()`'in eşit değil, ağırlıklı hâli.
+ *
+ * `addOrderLine`'daki gibi her bileşenin AKTİF reçete versiyonu satırda
+ * dondurulur — aksi hâlde stok düşümü (`depleteOrderStock`, yalnızca
+ * `recipe_version_id` dolu satırları işler) bu satırları sessizce atlardı.
+ */
+export async function addComboToOrder(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const input = addComboSchema.parse({
+      orderId: formData.get("orderId"),
+      comboId: formData.get("comboId"),
+    });
+
+    const user = await requireAppUser();
+    const supabase = await createClient();
+
+    const { data: order } = await supabase
+      .from("orders")
+      .select("id, branch_id, status")
+      .eq("id", input.orderId)
+      .maybeSingle();
+    if (!order || order.status !== "open") {
+      return { error: "Bu adisyon artık açık değil." };
+    }
+
+    const { data: combo } = await supabase
+      .from("combos")
+      .select("id, name, price, is_active, combo_items(menu_item_id, quantity)")
+      .eq("id", input.comboId)
+      .maybeSingle();
+    if (!combo || !combo.is_active) {
+      return { error: "Bu kombo artık satılamıyor." };
+    }
+    const comboItems = combo.combo_items ?? [];
+    if (comboItems.length === 0) {
+      return { error: "Bu komboda ürün tanımlı değil." };
+    }
+
+    const itemIds = comboItems.map((i) => i.menu_item_id);
+
+    const [pricesResult, recipesResult] = await Promise.all([
+      supabase
+        .from("menu_prices")
+        .select("menu_item_id, price, branch_id, valid_from")
+        .in("menu_item_id", itemIds)
+        .or(`branch_id.eq.${order.branch_id},branch_id.is.null`)
+        .order("valid_from", { ascending: false }),
+      supabase
+        .from("recipes")
+        .select("menu_item_id, recipe_versions(id, status)")
+        .in("menu_item_id", itemIds),
+    ]);
+
+    const priceByItem = new Map<string, number>();
+    for (const row of pricesResult.data ?? []) {
+      if (row.branch_id === order.branch_id) {
+        priceByItem.set(row.menu_item_id, Number(row.price));
+      } else if (!priceByItem.has(row.menu_item_id)) {
+        priceByItem.set(row.menu_item_id, Number(row.price));
+      }
+    }
+    if (comboItems.some((item) => !priceByItem.has(item.menu_item_id))) {
+      return { error: "Kombo bileşenlerinden birinin fiyatı tanımlı değil." };
+    }
+
+    const recipeVersionByItem = new Map<string, string | null>();
+    for (const recipe of recipesResult.data ?? []) {
+      if (!recipe.menu_item_id) continue;
+      const active = recipe.recipe_versions?.find((v) => v.status === "active");
+      recipeVersionByItem.set(recipe.menu_item_id, active?.id ?? null);
+    }
+
+    // Supabase `numeric` sütunları TS tipinde `number` görünse de çoğu zaman
+    // çalışma anında STRING döner (PostgREST'in wire davranışı) — `money()`
+    // `Number.isFinite()` kullanıyor, bu string'i COERCE ETMEZ ve sessizce
+    // yanlış (ya da NaN'a yakın) bir sonuç üretebilir. Bu yüzden her DB
+    // kaynaklı sayı burada açıkça `Number(...)`'a sarılıyor — kod tabanının
+    // her yerindeki aynı desen (bkz. `priceByItem` doldurma satırı yukarıda).
+    const quantityByItem = new Map(comboItems.map((item) => [item.menu_item_id, Number(item.quantity)]));
+    const weights = comboItems.map((item) =>
+      money(priceByItem.get(item.menu_item_id)! * quantityByItem.get(item.menu_item_id)!),
+    );
+    const allocated = allocateProportional(money(Number(combo.price)), weights);
+
+    const rows = comboItems.map((item, index) => ({
+      tenant_id: user.tenantId,
+      order_id: input.orderId,
+      menu_item_id: item.menu_item_id,
+      quantity: quantityByItem.get(item.menu_item_id)!,
+      unit_price: toLira(allocated[index]!) / quantityByItem.get(item.menu_item_id)!,
+      recipe_version_id: recipeVersionByItem.get(item.menu_item_id) ?? null,
+      note: `Kombo: ${combo.name}`,
+      created_by: user.userId,
+      client_key: randomUUID(),
+    }));
+
+    const { error } = await supabase.from("order_lines").insert(rows);
+    if (error) return { error: error.message };
   } catch (error) {
     return fail(error);
   }

@@ -37,8 +37,8 @@ export default async function RecipesPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-        <div>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight text-ink">
             Reçeteler ve maliyet
           </h1>
@@ -48,12 +48,18 @@ export default async function RecipesPage() {
           </p>
         </div>
 
-        <div className="flex shrink-0 gap-2">
+        <div className="flex flex-wrap gap-2 sm:justify-end">
           <Link
             href="/recipes/malzemeler"
             className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
           >
             Hammaddeler
+          </Link>
+          <Link
+            href="/recipes/kombo"
+            className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
+          >
+            Kombolar
           </Link>
           <Link
             href="/recipes/yeni"

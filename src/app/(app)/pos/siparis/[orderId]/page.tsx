@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { loadSellableCombos } from "@/lib/combos/queries";
 import { requireAppUser } from "@/lib/auth/current-user";
 import { loadOpenOrderById, loadSellableMenu } from "@/lib/orders/queries";
 
@@ -44,12 +45,16 @@ export default async function ChannelOrderPage({
     );
   }
 
-  const categories = await loadSellableMenu(user.branchId ?? "");
+  const [categories, combos] = await Promise.all([
+    loadSellableMenu(user.branchId ?? ""),
+    loadSellableCombos(user.branchId ?? ""),
+  ]);
 
   return (
     <OrderScreen
       order={order}
       categories={categories}
+      combos={combos}
       tenantId={user.tenantId}
       userId={user.userId}
     />
