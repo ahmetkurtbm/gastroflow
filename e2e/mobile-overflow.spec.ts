@@ -45,6 +45,11 @@ const ROUTES = [
 ];
 
 test("mobil düzen taşması: ana ekranlarda yatay kaydırma olmamalı (375px)", async ({ page }) => {
+  // ~24 sayfayı `networkidle` bekleyerek tek tek geziyor — varsayılan 30s
+  // test bütçesi bu kadar sayfa ziyareti için yeterli değil (tek bir
+  // interaktif senaryo değil, sistematik bir tarama).
+  test.setTimeout(90_000);
+
   const { orderFlow } = await readState();
   const admin = adminClient();
 

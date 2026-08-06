@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AppNav } from "@/components/app-nav";
+import { GlobalSyncIndicator } from "@/components/global-sync-indicator";
 import { MobileNavDrawer } from "@/components/mobile-nav-drawer";
 import { navFor } from "@/lib/auth/access";
 import { signOut } from "@/lib/auth/actions";
@@ -78,7 +79,10 @@ export default async function AppLayout({
               Gastro<span className="text-brand-600">Flow</span>
             </Link>
           </div>
-          <LanguageSwitcher locale={locale} />
+          <div className="flex shrink-0 items-center gap-2">
+            <GlobalSyncIndicator />
+            <LanguageSwitcher locale={locale} />
+          </div>
         </div>
 
         <aside className="hidden bg-surface-raised md:block md:w-56 md:shrink-0 md:border-r md:border-line">
@@ -99,6 +103,7 @@ export default async function AppLayout({
 
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="hidden items-center justify-end gap-3 border-b border-line px-4 py-3 md:flex">
+            <GlobalSyncIndicator />
             <LanguageSwitcher locale={locale} />
             <div className="text-right leading-tight">
               <p className="text-sm font-medium text-ink">{fullName}</p>
