@@ -70,6 +70,12 @@ export default async function ReportsPage() {
         >
           Fiş Mutabakatı
         </Link>
+        <Link
+          href="/reports/hakedis-mutabakati"
+          className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
+        >
+          Hakediş Mutabakatı
+        </Link>
       </div>
 
       <section className="mt-6 rounded-xl border border-line bg-surface-raised p-5">

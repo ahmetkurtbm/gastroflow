@@ -243,6 +243,54 @@ export type Database = {
           },
         ]
       }
+      channel_settlements: {
+        Row: {
+          amount: number
+          branch_id: string
+          created_at: string
+          id: string
+          imported_by: string | null
+          platform: string
+          settlement_date: string
+          tenant_id: string
+        }
+        Insert: {
+          amount: number
+          branch_id: string
+          created_at?: string
+          id?: string
+          imported_by?: string | null
+          platform: string
+          settlement_date: string
+          tenant_id: string
+        }
+        Update: {
+          amount?: number
+          branch_id?: string
+          created_at?: string
+          id?: string
+          imported_by?: string | null
+          platform?: string
+          settlement_date?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_settlements_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "channel_settlements_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       combo_items: {
         Row: {
           combo_id: string

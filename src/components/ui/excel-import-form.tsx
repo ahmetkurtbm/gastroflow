@@ -15,12 +15,16 @@ export function ExcelImportForm({
   action,
   templateHref,
   exportHref,
+  hiddenFields,
 }: {
   action: (previous: ImportResult, formData: FormData) => Promise<ImportResult>;
   /** Boş, örnek satırlı şablon — ilk kurulum için. */
   templateHref: string;
   /** Mevcut veriyi aynı formatta indirir — toplu düzenleyip geri yüklemek için. */
   exportHref: string;
+  /** Tedarikçi/şube gibi, dosyanın kendisinde OLMAYAN ama eylemin ihtiyaç
+   * duyduğu bağlam — ör. hangi tedarikçinin fiyat listesi olduğu. */
+  hiddenFields?: Record<string, string>;
 }) {
   const [state, formAction] = useActionState(action, initial);
 
@@ -35,6 +39,11 @@ export function ExcelImportForm({
         </a>
       </div>
       <form action={formAction} className="flex flex-wrap items-center gap-2">
+        {hiddenFields
+          ? Object.entries(hiddenFields).map(([name, value]) => (
+              <input key={name} type="hidden" name={name} value={value} />
+            ))
+          : null}
         <input
           type="file"
           name="file"

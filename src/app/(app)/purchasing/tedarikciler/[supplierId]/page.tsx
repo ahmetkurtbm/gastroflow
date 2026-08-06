@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ExcelImportForm } from "@/components/ui/excel-import-form";
 import { loadStockPickLists } from "@/lib/inventory/queries";
+import { importSupplierPriceList } from "@/lib/purchasing/actions";
 import { loadSupplierItems, loadSuppliers } from "@/lib/purchasing/queries";
 
 import { SupplierItemForm } from "./supplier-item-form";
@@ -47,6 +49,22 @@ export default async function SupplierDetailPage({
       <section className="rounded-xl border border-line bg-surface-raised p-5">
         <h2 className="mb-3 text-sm font-semibold text-ink">Fiyat listesine ekle</h2>
         <SupplierItemForm supplierId={supplier.id} items={picks.items} />
+      </section>
+
+      <section className="mt-6 rounded-xl border border-line bg-surface-raised">
+        <h2 className="border-b border-line px-4 py-3 text-sm font-semibold text-ink">
+          Excel ile toplu ekle/güncelle
+        </h2>
+        <p className="px-4 pt-3 text-xs leading-relaxed text-ink-muted">
+          Tedarikçinin WhatsApp/mailden gönderdiği fiyat listesini kendisi değil,
+          bu şablonu doldurup yükle — hammadde adı sistemdekiyle birebir eşleşmeli.
+        </p>
+        <ExcelImportForm
+          action={importSupplierPriceList}
+          templateHref={`/api/export/tedarikci-fiyatlari?supplierId=${supplier.id}&template=1`}
+          exportHref={`/api/export/tedarikci-fiyatlari?supplierId=${supplier.id}`}
+          hiddenFields={{ supplierId: supplier.id }}
+        />
       </section>
 
       <section className="mt-6 rounded-xl border border-line bg-surface-raised">

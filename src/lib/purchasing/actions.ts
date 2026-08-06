@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { requireAppUser } from "@/lib/auth/current-user";
+import { parseWorkbookRows, type ImportResult } from "@/lib/excel/workbook";
 import { createClient } from "@/lib/supabase/server";
 
 export type ActionState = { error?: string; ok?: boolean };
@@ -109,6 +110,108 @@ export async function addSupplierItem(
 
   revalidatePath("/purchasing", "layout");
   return { ok: true };
+}
+
+const importSupplierItemRowSchema = z.object({
+  itemName: z.string().trim().min(1).max(120),
+  price: z.coerce.number().min(0),
+  sku: z.string().trim().max(60).optional(),
+  minOrder: z.coerce.number().min(0).optional(),
+});
+
+/**
+ * Tedarikçi fiyat listesini Excel'den toplu içe aktarır (bkz.
+ * `/api/export/tedarikci-fiyatlari`).
+ *
+ * Tedarikçinin GÖNDERDİĞİ dosyayı ayrıştırmıyoruz — her tedarikçi farklı bir
+ * formatta gönderiyor, hangi sütunun ne olduğunu genel geçer bilemeyiz. Bunun
+ * yerine KENDİ şablonumuzu (Hammadde Adı, Fiyat, SKU, Min. Sipariş) sağlıyoruz;
+ * kullanıcı tedarikçinin fişindeki/mailindeki rakamları buraya taşıyor. Aynı
+ * desen fiş mutabakatında da var — dış sistemin gerçek formatı bilinmeden de
+ * çalışıyor.
+ *
+ * `(tenant, supplier, hammadde)` eşleşirse fiyat güncellenir, yoksa yeni
+ * satır. Hammadde sistemde YOKSA satır atlanır — tedarikçi listesinden
+ * otomatik hammadde açmıyoruz, çünkü `base_unit` (kg/g/adet) bu dosyada
+ * belirtilmiyor ve onu tahmin etmek yanlış birim dönüşümüne yol açardı.
+ */
+export async function importSupplierPriceList(
+  _previous: ImportResult,
+  formData: FormData,
+): Promise<ImportResult> {
+  try {
+    const supplierId = z.uuid().parse(formData.get("supplierId"));
+    const file = formData.get("file");
+    if (!(file instanceof File) || file.size === 0) {
+      return { error: "Bir dosya seç." };
+    }
+
+    const rows = await parseWorkbookRows(file);
+    if (rows.length === 0) return { error: "Dosyada satır bulunamadı." };
+
+    const user = await requireAppUser();
+    const supabase = await createClient();
+
+    const [{ data: ingredients }, { data: existingItems }] = await Promise.all([
+      supabase.from("inventory_items").select("id, name").eq("tenant_id", user.tenantId),
+      supabase
+        .from("supplier_items")
+        .select("id, inventory_item_id")
+        .eq("tenant_id", user.tenantId)
+        .eq("supplier_id", supplierId),
+    ]);
+    const ingredientIdByName = new Map((ingredients ?? []).map((i) => [i.name.trim().toLowerCase(), i.id]));
+    const supplierItemIdByIngredient = new Map((existingItems ?? []).map((s) => [s.inventory_item_id, s.id]));
+
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+    for (const row of rows) {
+      const parsed = importSupplierItemRowSchema.safeParse({
+        itemName: row["Hammadde Adı"],
+        price: row["Fiyat (₺)"],
+        sku: row["Tedarikçi SKU"] || undefined,
+        minOrder: row["Min. Sipariş"] || undefined,
+      });
+      if (!parsed.success) {
+        skipped++;
+        continue;
+      }
+      const inventoryItemId = ingredientIdByName.get(parsed.data.itemName.trim().toLowerCase());
+      if (!inventoryItemId) {
+        skipped++;
+        continue;
+      }
+
+      const existingId = supplierItemIdByIngredient.get(inventoryItemId);
+      if (existingId) {
+        const { error } = await supabase
+          .from("supplier_items")
+          .update({
+            price: parsed.data.price,
+            supplier_sku: parsed.data.sku ?? null,
+            min_order_quantity: parsed.data.minOrder ?? 0,
+          })
+          .eq("id", existingId);
+        if (!error) updated++;
+      } else {
+        const { error } = await supabase.from("supplier_items").insert({
+          tenant_id: user.tenantId,
+          supplier_id: supplierId,
+          inventory_item_id: inventoryItemId,
+          price: parsed.data.price,
+          supplier_sku: parsed.data.sku ?? null,
+          min_order_quantity: parsed.data.minOrder ?? 0,
+        });
+        if (!error) created++;
+      }
+    }
+
+    revalidatePath("/purchasing", "layout");
+    return { ok: true, created, updated, skipped };
+  } catch (error) {
+    return fail(error);
+  }
 }
 
 const createPOSchema = z.object({
