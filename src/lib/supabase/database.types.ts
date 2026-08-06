@@ -461,6 +461,54 @@ export type Database = {
           },
         ]
       }
+      fiscal_receipts: {
+        Row: {
+          amount: number
+          branch_id: string
+          created_at: string
+          id: string
+          imported_by: string | null
+          receipt_date: string
+          receipt_no: string | null
+          tenant_id: string
+        }
+        Insert: {
+          amount: number
+          branch_id: string
+          created_at?: string
+          id?: string
+          imported_by?: string | null
+          receipt_date: string
+          receipt_no?: string | null
+          tenant_id: string
+        }
+        Update: {
+          amount?: number
+          branch_id?: string
+          created_at?: string
+          id?: string
+          imported_by?: string | null
+          receipt_date?: string
+          receipt_no?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_receipts_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_receipts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inventory_items: {
         Row: {
           base_unit: string

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { requireAppUser } from "@/lib/auth/current-user";
+import { parseWorkbookRows, type ImportResult } from "@/lib/excel/workbook";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -170,6 +171,80 @@ export async function deleteConversion(formData: FormData) {
   await supabase.from("item_unit_conversions").delete().eq("id", id);
   revalidatePath("/recipes/malzemeler");
   revalidatePath("/recipes");
+}
+
+const importIngredientRowSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  baseUnit: unitSchema,
+  costPerBaseUnit: z.coerce.number().min(0),
+});
+
+/**
+ * Hammadde listesini Excel'den toplu içe aktarır — indir → doldur/düzenle →
+ * yükle deseninin "yükle" adımı (bkz. `/api/export/hammaddeler`).
+ *
+ * `(tenant_id, name)` eşleşirse GÜNCELLEME (yalnızca maliyet — `base_unit`
+ * mevcut bir kalemde DEĞİŞTİRİLMİYOR, çünkü reçete satırları o birime göre
+ * dönüşüm varsayıyor; birimi elden değiştirmek sessizce yanlış gramaja yol
+ * açardı), eşleşmezse yeni kayıt. Tek tek insert/update — bu ölçekte
+ * (yüzlerce satır) performans sorunu yaratmayacak kadar az veri.
+ */
+export async function importIngredients(
+  _previous: ImportResult,
+  formData: FormData,
+): Promise<ImportResult> {
+  try {
+    const file = formData.get("file");
+    if (!(file instanceof File) || file.size === 0) {
+      return { error: "Bir dosya seç." };
+    }
+
+    const rows = await parseWorkbookRows(file);
+    if (rows.length === 0) return { error: "Dosyada satır bulunamadı." };
+
+    const user = await requireAppUser();
+    const supabase = await createClient();
+
+    const { data: existing } = await supabase
+      .from("inventory_items")
+      .select("id, name")
+      .eq("tenant_id", user.tenantId);
+    const idByName = new Map((existing ?? []).map((i) => [i.name.trim().toLowerCase(), i.id]));
+
+    let created = 0;
+    let updated = 0;
+    for (const row of rows) {
+      const parsed = importIngredientRowSchema.safeParse({
+        name: row["Ad"],
+        baseUnit: row["Birim"],
+        costPerBaseUnit: row["Maliyet (TL/birim)"],
+      });
+      if (!parsed.success) continue; // Geçersiz satır sessizce atlanır — kısmi başarı, tamamı reddetmiyor.
+
+      const existingId = idByName.get(parsed.data.name.trim().toLowerCase());
+      if (existingId) {
+        const { error } = await supabase
+          .from("inventory_items")
+          .update({ cost_per_base_unit: parsed.data.costPerBaseUnit })
+          .eq("id", existingId);
+        if (!error) updated++;
+      } else {
+        const { error } = await supabase.from("inventory_items").insert({
+          tenant_id: user.tenantId,
+          name: parsed.data.name,
+          base_unit: parsed.data.baseUnit,
+          cost_per_base_unit: parsed.data.costPerBaseUnit,
+        });
+        if (!error) created++;
+      }
+    }
+
+    revalidatePath("/recipes/malzemeler");
+    revalidatePath("/recipes");
+    return { ok: true, created, updated };
+  } catch (error) {
+    return fail(error);
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -552,4 +627,135 @@ export async function removeMenuItemImage(formData: FormData) {
 
   revalidatePath("/recipes", "layout");
   revalidatePath("/pos", "layout");
+}
+
+// -----------------------------------------------------------------------------
+// Menü ürünleri (toplu içe aktarma)
+// -----------------------------------------------------------------------------
+
+const importMenuItemRowSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  category: z.string().trim().max(80).optional(),
+  price: z.coerce.number().min(0).optional(),
+  vat: z.coerce.number().min(0).max(100).optional(),
+});
+
+/**
+ * Menü ürünlerini Excel'den toplu içe aktarır (bkz. `/api/export/menu-urunleri`).
+ *
+ * `(tenant_id, name)` eşleşirse mevcut ürün güncellenir (kategori), yoksa
+ * yeni ürün açılır. Kategori adı sistemde yoksa OTOMATİK oluşturulur — ilk
+ * kurulumda "önce kategorileri tek tek aç, sonra ürünleri" diye ayrı bir
+ * adım istemiyoruz. Fiyat/KDV verilmişse ve MEVCUT genel fiyattan farklıysa
+ * yeni bir `menu_prices` satırı eklenir (fiyat DONDURULUR, üzerine
+ * yazılmaz) — `addOrderLine`'daki aynı prensip. Aynıysa tekrar satır
+ * eklenmez, gereksiz fiyat geçmişi birikmesin.
+ */
+export async function importMenuItems(
+  _previous: ImportResult,
+  formData: FormData,
+): Promise<ImportResult> {
+  try {
+    const file = formData.get("file");
+    if (!(file instanceof File) || file.size === 0) {
+      return { error: "Bir dosya seç." };
+    }
+
+    const rows = await parseWorkbookRows(file);
+    if (rows.length === 0) return { error: "Dosyada satır bulunamadı." };
+
+    const user = await requireAppUser();
+    const supabase = await createClient();
+
+    const [{ data: existingCategories }, { data: existingItems }, { data: existingPrices }] =
+      await Promise.all([
+        supabase.from("categories").select("id, name").eq("tenant_id", user.tenantId),
+        supabase.from("menu_items").select("id, name, category_id").eq("tenant_id", user.tenantId),
+        supabase
+          .from("menu_prices")
+          .select("menu_item_id, price, vat_rate, valid_from")
+          .eq("tenant_id", user.tenantId)
+          .is("branch_id", null)
+          .order("valid_from", { ascending: false }),
+      ]);
+
+    const categoryIdByName = new Map((existingCategories ?? []).map((c) => [c.name.trim().toLowerCase(), c.id]));
+    const itemByName = new Map((existingItems ?? []).map((i) => [i.name.trim().toLowerCase(), i]));
+    const latestPriceByItem = new Map<string, { price: number; vat: number }>();
+    for (const p of existingPrices ?? []) {
+      if (!latestPriceByItem.has(p.menu_item_id)) {
+        latestPriceByItem.set(p.menu_item_id, { price: Number(p.price), vat: Number(p.vat_rate) });
+      }
+    }
+
+    let created = 0;
+    let updated = 0;
+    for (const row of rows) {
+      const parsed = importMenuItemRowSchema.safeParse({
+        name: row["Ürün Adı"],
+        category: row["Kategori"] || undefined,
+        price: row["Fiyat (₺)"] || undefined,
+        vat: row["KDV (%)"] || undefined,
+      });
+      if (!parsed.success) continue;
+
+      let categoryId: string | null = null;
+      if (parsed.data.category) {
+        const key = parsed.data.category.trim().toLowerCase();
+        categoryId = categoryIdByName.get(key) ?? null;
+        if (!categoryId) {
+          const { data: newCategory, error } = await supabase
+            .from("categories")
+            .insert({ tenant_id: user.tenantId, name: parsed.data.category })
+            .select("id")
+            .single();
+          if (error || !newCategory) continue;
+          categoryId = newCategory.id;
+          categoryIdByName.set(key, categoryId);
+        }
+      }
+
+      const nameKey = parsed.data.name.trim().toLowerCase();
+      let itemId = itemByName.get(nameKey)?.id ?? null;
+      if (itemId) {
+        const { error } = await supabase
+          .from("menu_items")
+          .update({ category_id: categoryId })
+          .eq("id", itemId);
+        if (!error) updated++;
+      } else {
+        const { data: newItem, error } = await supabase
+          .from("menu_items")
+          .insert({ tenant_id: user.tenantId, name: parsed.data.name, category_id: categoryId })
+          .select("id")
+          .single();
+        if (error || !newItem) continue;
+        itemId = newItem.id;
+        itemByName.set(nameKey, { id: itemId, name: parsed.data.name, category_id: categoryId });
+        created++;
+      }
+
+      if (parsed.data.price !== undefined) {
+        const vat = parsed.data.vat ?? 10;
+        const current = latestPriceByItem.get(itemId);
+        const changed = !current || current.price !== parsed.data.price || current.vat !== vat;
+        if (changed) {
+          const { error } = await supabase.from("menu_prices").insert({
+            tenant_id: user.tenantId,
+            menu_item_id: itemId,
+            branch_id: null,
+            price: parsed.data.price,
+            vat_rate: vat,
+          });
+          if (!error) latestPriceByItem.set(itemId, { price: parsed.data.price, vat });
+        }
+      }
+    }
+
+    revalidatePath("/recipes", "layout");
+    revalidatePath("/pos", "layout");
+    return { ok: true, created, updated };
+  } catch (error) {
+    return fail(error);
+  }
 }

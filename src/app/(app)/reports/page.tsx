@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { ROLE_LABEL, type AppRole } from "@/lib/auth/access";
 import { requireAppUser } from "@/lib/auth/current-user";
@@ -54,6 +55,21 @@ export default async function ReportsPage() {
         <StatTile label="Şube" value={branchesResult.count ?? 0} />
         <StatTile label="Personel" value={members.length} />
         <StatTile label="Log kaydı" value={auditResult.count ?? 0} />
+      </div>
+
+      <div className="mt-6 flex flex-wrap gap-2">
+        <Link
+          href="/inventory/varyans"
+          className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
+        >
+          Teorik/Fiili Varyans
+        </Link>
+        <Link
+          href="/reports/fis-mutabakati"
+          className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
+        >
+          Fiş Mutabakatı
+        </Link>
       </div>
 
       <section className="mt-6 rounded-xl border border-line bg-surface-raised p-5">

@@ -60,6 +60,11 @@ const PATH_ACCESS: Record<string, readonly AppRole[]> = {
   "/audit": ["owner"],
   "/m": ["manager", "owner"],
   "/settings": ["owner"],
+  // Excel dışa aktarım uç noktaları (/recipes, /reports vb. ekranlardan
+  // indirilen dosyalar) — sayfa erişimi zaten oradaki PATH_ACCESS'ten
+  // geçiyor, burada TÜM rollere açık olması "tanımsız yol = kapalı yol"
+  // varsayılanının bu isteği sessizce yönlendirmesini engellemek için.
+  "/api/export": ["waiter", "cashier", "chef", "manager", "owner", "storekeeper", "accountant"],
 };
 
 /**

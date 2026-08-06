@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { ExcelImportForm } from "@/components/ui/excel-import-form";
 import { formatRate } from "@/core/money";
+import { importIngredients } from "@/lib/recipes/actions";
 import { createClient } from "@/lib/supabase/server";
 
 import { CreateIngredientForm } from "./ingredient-forms";
@@ -47,6 +49,17 @@ export default async function IngredientsPage() {
       <section className="rounded-xl border border-line bg-surface-raised p-5">
         <h2 className="mb-3 text-sm font-semibold text-ink">Yeni hammadde</h2>
         <CreateIngredientForm />
+      </section>
+
+      <section className="mt-6 rounded-xl border border-line bg-surface-raised">
+        <h2 className="border-b border-line px-4 py-3 text-sm font-semibold text-ink">
+          Excel ile toplu ekle/güncelle
+        </h2>
+        <ExcelImportForm
+          action={importIngredients}
+          templateHref="/api/export/hammaddeler?template=1"
+          exportHref="/api/export/hammaddeler"
+        />
       </section>
 
       <section className="mt-6">

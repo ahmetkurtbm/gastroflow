@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { ExcelImportForm } from "@/components/ui/excel-import-form";
 import { formatRate, money, formatMoney } from "@/core/money";
 import { foodCostRatio } from "@/core/recipe";
 import { formatQuantity } from "@/core/units";
+import { importMenuItems } from "@/lib/recipes/actions";
 import { loadCatalog, safeCost } from "@/lib/recipes/catalog";
 
 export const metadata: Metadata = { title: "Reçeteler" };
@@ -69,6 +71,21 @@ export default async function RecipesPage() {
           </Link>
         </div>
       </div>
+
+      <section className="mb-6 rounded-xl border border-line bg-surface-raised">
+        <h2 className="border-b border-line px-4 py-3 text-sm font-semibold text-ink">
+          Excel ile toplu ürün/fiyat ekle veya güncelle
+        </h2>
+        <p className="px-4 pt-3 text-xs leading-relaxed text-ink-muted">
+          Yalnızca ürün, kategori, fiyat ve KDV — reçete/maliyet burada oluşmaz,
+          içe aktardıktan sonra reçetesini &quot;Yeni reçete&quot;den ekleyebilirsin.
+        </p>
+        <ExcelImportForm
+          action={importMenuItems}
+          templateHref="/api/export/menu-urunleri?template=1"
+          exportHref="/api/export/menu-urunleri"
+        />
+      </section>
 
       {summaries.length === 0 ? (
         <p className="rounded-xl border border-line bg-surface-raised px-4 py-8 text-center text-sm text-ink-muted">
