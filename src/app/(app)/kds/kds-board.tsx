@@ -1,10 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { advanceKitchenTicket } from "@/lib/orders/actions";
 import type { KitchenTicket } from "@/lib/orders/queries";
 import { createClient } from "@/lib/supabase/client";
+
+const KDS_STATUSES: readonly KitchenTicket["status"][] = ["sent", "preparing", "ready"];
+
+function mapTicketRow(
+  line: {
+    id: string;
+    quantity: number | string;
+    note: string | null;
+    status: string;
+    sent_at: string | null;
+    menu_items: { name: string } | null;
+    orders: { order_no: number | null; tables: { name: string } | null } | null;
+    order_line_modifiers: { name: string }[] | null;
+  },
+): KitchenTicket {
+  return {
+    id: line.id,
+    menuItemName: line.menu_items?.name ?? "Bilinmeyen ürün",
+    quantity: Number(line.quantity),
+    modifierSummary:
+      (line.order_line_modifiers ?? []).length > 0
+        ? line.order_line_modifiers!.map((m) => m.name).join(", ")
+        : null,
+    note: line.note,
+    status: line.status as KitchenTicket["status"],
+    tableName: line.orders?.tables?.name ?? null,
+    orderNo: line.orders?.order_no ?? null,
+    sentAt: line.sent_at as string,
+  };
+}
 
 const COLUMNS: {
   status: KitchenTicket["status"];
@@ -92,39 +122,33 @@ export function KdsBoard({
   initialTickets: KitchenTicket[];
   tenantId: string;
 }) {
-  // İlk değer yalnızca mount anında kullanılır; sonrası tamamen realtime'a
-  // bırakılıyor. "served" olan bilet kuyruktan tamamen düşer — bunu olay
-  // tipine göre satır satır yamalamak yerine her olayda sunucudan taze liste
-  // çekmek çok daha az hataya açık.
+  // İlk değer yalnızca mount anında kullanılır; sonrası realtime'a bırakılıyor.
   const [tickets, setTickets] = useState(initialTickets);
   const [supabase] = useState(() => createClient());
 
+  // Event handler'ın (yalnızca bir kez, effect mount'unda) o ANDAKİ listeye
+  // erişmesi gerekiyor — state'in kendisi closure'a hapsolmasın diye ref'te
+  // aynala. Yoğun serviste dakikada onlarca durum değişimi oluyor (sent →
+  // preparing → ready → served); her birinde TÜM açık biletleri yeniden
+  // çekmek (eski davranış) gereksiz sorgu yükü demekti. Artık yalnızca:
+  //   - Durum değişimi (mevcut bilet elimizde) → yerel state'i yama, sorgu YOK.
+  //   - Gerçekten yeni bir bilet (INSERT ya da elimizde hiç yoksa) → yalnızca
+  //     O SATIRI join'li halinde tek satır sorgusuyla al, tüm listeyi değil.
+  const ticketsRef = useRef(tickets);
   useEffect(() => {
-    async function refetch() {
+    ticketsRef.current = tickets;
+  }, [tickets]);
+
+  useEffect(() => {
+    async function fetchTicket(id: string): Promise<KitchenTicket | null> {
       const { data } = await supabase
         .from("order_lines")
         .select(
           "id, quantity, note, status, sent_at, menu_items(name), orders(order_no, tables(name)), order_line_modifiers(name)",
         )
-        .in("status", ["sent", "preparing", "ready"])
-        .order("sent_at", { ascending: true });
-
-      setTickets(
-        (data ?? []).map((line) => ({
-          id: line.id,
-          menuItemName: line.menu_items?.name ?? "Bilinmeyen ürün",
-          quantity: Number(line.quantity),
-          modifierSummary:
-            (line.order_line_modifiers ?? []).length > 0
-              ? line.order_line_modifiers.map((m) => m.name).join(", ")
-              : null,
-          note: line.note,
-          status: line.status as KitchenTicket["status"],
-          tableName: line.orders?.tables?.name ?? null,
-          orderNo: line.orders?.order_no ?? null,
-          sentAt: line.sent_at as string,
-        })),
-      );
+        .eq("id", id)
+        .maybeSingle();
+      return data ? mapTicketRow(data) : null;
     }
 
     // Realtime, RLS'ten geçer: bu kanal başka bir işletmenin verisini asla
@@ -140,8 +164,41 @@ export function KdsBoard({
           table: "order_lines",
           filter: `tenant_id=eq.${tenantId}`,
         },
-        () => {
-          void refetch();
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const oldId = (payload.old as { id: string }).id;
+            setTickets((prev) => prev.filter((t) => t.id !== oldId));
+            return;
+          }
+
+          const row = payload.new as { id: string; status: string };
+
+          if (!KDS_STATUSES.includes(row.status as KitchenTicket["status"])) {
+            // served/cancelled/pending'e döndü — KDS'den düşer.
+            setTickets((prev) => prev.filter((t) => t.id !== row.id));
+            return;
+          }
+
+          if (ticketsRef.current.some((t) => t.id === row.id)) {
+            // Yalnızca durum değişti — ürün adı/masa gibi join'li alanlar
+            // değişmez, sorgu atmadan yerinde güncelle.
+            setTickets((prev) =>
+              prev.map((t) =>
+                t.id === row.id ? { ...t, status: row.status as KitchenTicket["status"] } : t,
+              ),
+            );
+            return;
+          }
+
+          // Gerçekten yeni bir bilet — tek satırı join'li çek, listeye ekle.
+          void fetchTicket(row.id).then((ticket) => {
+            if (!ticket) return;
+            setTickets((prev) =>
+              prev.some((t) => t.id === ticket.id)
+                ? prev
+                : [...prev, ticket].sort((a, b) => a.sentAt.localeCompare(b.sentAt)),
+            );
+          });
         },
       )
       .subscribe();
