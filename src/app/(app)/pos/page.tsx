@@ -24,10 +24,10 @@ function minutesSince(iso: string): number {
  * canvas'ta da aynı görünmemeli. `vertical` masayı duvara dik döndürür
  * (bkz. `/settings/salon`'daki aynı ölçek + yön ayarı, migration 0019).
  */
-function seatBoxSize(seats: number, vertical: boolean): { width: string; minHeight: string } {
+function seatBoxSize(seats: number, vertical: boolean): { width: string; height: string } {
   const long = seats <= 2 ? "5rem" : seats <= 4 ? "6.5rem" : seats <= 8 ? "8rem" : "9.5rem";
   const short = "3.25rem";
-  return vertical ? { width: short, minHeight: long } : { width: long, minHeight: short };
+  return vertical ? { width: short, height: long } : { width: long, height: short };
 }
 
 export default async function PosFloorPlanPage() {
@@ -199,11 +199,11 @@ function TableCard({
 
   if (!openOrder) {
     return (
-      <form action={openTable}>
+      <form action={openTable} className="h-full">
         <input type="hidden" name="tableId" value={table.id} />
         <button
           type="submit"
-          className={`flex w-full flex-col items-start gap-1 rounded-xl border border-line bg-surface-raised text-left transition-colors hover:border-brand-400 hover:bg-brand-50/30 ${padding}`}
+          className={`flex h-full w-full flex-col items-start gap-1 rounded-xl border border-line bg-surface-raised text-left transition-colors hover:border-brand-400 hover:bg-brand-50/30 ${padding}`}
         >
           <span className={compact ? "text-sm font-bold text-ink" : "text-lg font-bold text-ink"}>
             {table.name}
@@ -225,11 +225,11 @@ function TableCard({
   const urgent = minutes >= 60;
 
   return (
-    <div className="relative">
+    <div className="relative h-full">
       {openOrder.total === 0 ? <ZeroTotalBadge orderId={openOrder.id} /> : null}
       <Link
         href={`/pos/masa/${table.id}`}
-        className={`flex flex-col items-start gap-1 rounded-xl border text-left transition-colors ${padding} ${
+        className={`flex h-full flex-col items-start gap-1 rounded-xl border text-left transition-colors ${padding} ${
           urgent
             ? "border-warn/50 bg-warn/10"
             : "border-brand-300 bg-brand-50/50 hover:bg-brand-50"
