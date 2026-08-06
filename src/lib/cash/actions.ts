@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { compare, toLira } from "@/core/money";
+import { compare, isZero, toLira } from "@/core/money";
 import { requireAppUser } from "@/lib/auth/current-user";
 import { loadOrderForPayment } from "@/lib/cash/queries";
 import { depleteOrderStock } from "@/lib/inventory/depletion";
@@ -155,6 +155,45 @@ export async function recordPayment(
   revalidatePath("/cash", "layout");
   revalidatePath("/pos", "layout");
   return { ok: true };
+}
+
+/**
+ * Tutarı sıfırlanmış (tamamı ikram/iskonto/kupon/puanla karşılanmış) bir
+ * adisyonu ödeme almadan kapatır.
+ *
+ * `recordPayment`'ın `amount` alanı `.positive()` — yani tutarı 0 TL'ye
+ * düşmüş bir adisyon, hiçbir zaman pozitif bir ödeme tutarı giremeyeceği
+ * için normal akıştan ASLA kapanamıyordu; masada/kasada süresiz "0 TL"
+ * olarak takılı kalıyordu. Bu, kasiyerin kendi beyanına değil, sunucunun
+ * KENDİ hesapladığı toplama güveniyor — `isZero` kontrolü burada.
+ */
+export async function closeZeroOrder(formData: FormData): Promise<void> {
+  const orderId = z.uuid().parse(formData.get("orderId"));
+  const supabase = await createClient();
+
+  const order = await loadOrderForPayment(orderId);
+  if (!order || order.status !== "open") return;
+  if (!isZero(order.total)) {
+    throw new Error("Bu adisyonun tutarı sıfır değil, ödeme almadan kapatılamaz.");
+  }
+
+  const { error } = await supabase
+    .from("orders")
+    .update({ status: "closed", closed_at: new Date().toISOString() })
+    .eq("id", orderId)
+    .eq("status", "open");
+  if (error) throw new Error(error.message);
+
+  // Aynı best-effort desen — bkz. `recordPayment`: stok düşümü başarısız
+  // olsa bile adisyon zaten kapandı, kasiyeri burada bekletmiyoruz.
+  try {
+    await depleteOrderStock(orderId);
+  } catch (depletionError) {
+    console.error(`Stok düşümü başarısız (adisyon ${orderId}):`, depletionError);
+  }
+
+  revalidatePath("/cash", "layout");
+  revalidatePath("/pos", "layout");
 }
 
 const openSessionSchema = z.object({

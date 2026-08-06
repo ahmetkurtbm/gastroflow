@@ -57,6 +57,20 @@ self.addEventListener("fetch", (event) => {
   // de bu worker'ın dışında bırakılıyor — realtime/auth akışını bozmamak için.
   if (request.method !== "GET" || !isSameOrigin(request.url)) return;
 
+  // Next.js'in bir Server Action'dan sonra kendi kendine attığı arka plan
+  // RSC yenileme isteği (`RSC`/`Next-Router-State-Tree` başlıklı) — bu SW
+  // asla dokunmamalı. Sebep: React/Next bu isteği bir sonraki render
+  // supersede ederse KENDİSİ iptal eder (AbortError); bu SW o iptali de
+  // "ağ hatası" sayıp aşağıdaki catch'te `Response.error()` üretiyordu, bu
+  // da tarayıcının native "Bu sayfa yüklenemedi" ekranını tetikliyordu —
+  // masa eklerken/vardiya kaydederken görülen hata tam olarak buydu.
+  // Bu istekler zaten "soğuk başlangıç" (offline sayfa açma) senaryosunun
+  // parçası değil — yalnızca uygulama zaten çalışırkenki canlı yenilemeler,
+  // bu yüzden es geçmek offline hedefinden hiçbir şey kaybettirmiyor.
+  if (request.headers.get("RSC") === "1" || request.headers.has("Next-Router-State-Tree")) {
+    return;
+  }
+
   if (isImmutableAsset(request.url)) {
     event.respondWith(
       caches.open(CACHE_VERSION).then(async (cache) => {

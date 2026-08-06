@@ -5,6 +5,15 @@ import { useRef, useState } from "react";
 import { unplaceTable, updateTablePosition } from "@/lib/floor/actions";
 import type { FloorTableAdmin } from "@/lib/floor/queries";
 
+/** `/pos`'taki gerçek yerleşim görünümüyle AYNI ölçek — editörde büyük
+ * gördüğün masa, garsonun ekranında da büyük görünmeli. */
+function seatBoxWidth(seats: number): string {
+  if (seats <= 2) return "5rem";
+  if (seats <= 4) return "6.5rem";
+  if (seats <= 8) return "8rem";
+  return "9.5rem";
+}
+
 /**
  * Görsel masa düzeni editörü — sürükle-bırak.
  *
@@ -95,7 +104,7 @@ export function FloorCanvas({ tables }: { tables: FloorTableAdmin[] }) {
               onPointerDown={(e) => handleChipPointerDown(table.id, e)}
               onPointerMove={handleChipPointerMove}
               onPointerUp={handleChipPointerUp}
-              style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+              style={{ left: `${pos.x}%`, top: `${pos.y}%`, width: seatBoxWidth(table.seats) }}
               className={`absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-lg border-2 bg-surface-raised px-2 py-1.5 text-center shadow-sm ${
                 draggingId === table.id
                   ? "z-10 cursor-grabbing border-brand-500"

@@ -6,6 +6,7 @@ import { allocate, formatMoney, isZero, money, toLira } from "@/core/money";
 import { requireAppUser } from "@/lib/auth/current-user";
 import { loadOrderForPayment } from "@/lib/cash/queries";
 import { getServerDictionary } from "@/lib/i18n/server";
+import { closeZeroOrder } from "@/lib/cash/actions";
 import { loadCustomerForOrder } from "@/lib/loyalty/queries";
 
 import { CouponBox } from "./coupon-box";
@@ -184,6 +185,25 @@ export default async function PaymentPage({
         <p className="mt-4 rounded-xl border border-ok/30 bg-ok/10 px-4 py-3 text-center text-sm text-ok">
           {dict.cash.closed}
         </p>
+      ) : isZero(order.total) ? (
+        // İkram/iskonto/kupon/puan toplamı tam karşılamış — tahsil edilecek
+        // bir tutar yok. Normal ödeme formu burada göstermiyoruz çünkü
+        // "amount" alanı sıfırdan büyük olmak zorunda (bkz. `recordPayment`),
+        // yani kasiyer hiçbir zaman gönderemezdi; adisyon süresiz açık kalırdı.
+        <section className="mt-4 rounded-xl border border-line bg-surface-raised p-5 text-center">
+          <p className="mb-3 text-sm text-ink-muted">
+            Tahsil edilecek bir tutar yok — tamamı ikram/indirimle karşılandı.
+          </p>
+          <form action={closeZeroOrder}>
+            <input type="hidden" name="orderId" value={order.id} />
+            <button
+              type="submit"
+              className="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-700"
+            >
+              Adisyonu kapat (0 ₺)
+            </button>
+          </form>
+        </section>
       ) : (
         <section className="mt-4 rounded-xl border border-line bg-surface-raised p-5">
           <div className="mb-4 flex items-center justify-between">

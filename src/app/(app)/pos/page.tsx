@@ -17,6 +17,18 @@ function minutesSince(iso: string): number {
   return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
 }
 
+/**
+ * Yerleşim canvas'ında masanın kutusu kişi sayısına göre büyür — 2 kişilik
+ * bir masayla 10 kişilik bir masa gerçek salonda aynı yer kaplamıyor,
+ * canvas'ta da aynı görünmemeli (bkz. `/settings/salon`'daki aynı ölçek).
+ */
+function seatBoxWidth(seats: number): string {
+  if (seats <= 2) return "5rem";
+  if (seats <= 4) return "6.5rem";
+  if (seats <= 8) return "8rem";
+  return "9.5rem";
+}
+
 export default async function PosFloorPlanPage() {
   await requireAppUser();
   const [areas, channelOrders, { dict }] = await Promise.all([
@@ -57,24 +69,26 @@ export default async function PosFloorPlanPage() {
             {channelOrders.map((order) => {
               const minutes = minutesSince(order.openedAt);
               return (
-                <Link
-                  key={order.id}
-                  href={`/pos/siparis/${order.id}`}
-                  className={`flex flex-col items-start gap-1 rounded-xl border p-4 text-left transition-colors ${
-                    minutes >= 60
-                      ? "border-warn/50 bg-warn/10"
-                      : "border-brand-300 bg-brand-50/50 hover:bg-brand-50"
-                  }`}
-                >
-                  <span className="text-sm font-bold text-ink">{CHANNEL_LABEL[order.channel]}</span>
-                  <span className="text-xs text-ink-muted">
-                    {order.orderNo ? `#${order.orderNo} · ` : ""}
-                    {minutes} dk
-                  </span>
-                  <span className="mt-2 text-sm font-semibold tabular-nums text-ink">
-                    {formatMoney(money(order.total))}
-                  </span>
-                </Link>
+                <div key={order.id} className="relative">
+                  {order.total === 0 ? <ZeroTotalBadge /> : null}
+                  <Link
+                    href={`/pos/siparis/${order.id}`}
+                    className={`flex flex-col items-start gap-1 rounded-xl border p-4 text-left transition-colors ${
+                      minutes >= 60
+                        ? "border-warn/50 bg-warn/10"
+                        : "border-brand-300 bg-brand-50/50 hover:bg-brand-50"
+                    }`}
+                  >
+                    <span className="text-sm font-bold text-ink">{CHANNEL_LABEL[order.channel]}</span>
+                    <span className="text-xs text-ink-muted">
+                      {order.orderNo ? `#${order.orderNo} · ` : ""}
+                      {minutes} dk
+                    </span>
+                    <span className="mt-2 text-sm font-semibold tabular-nums text-ink">
+                      {formatMoney(money(order.total))}
+                    </span>
+                  </Link>
+                </div>
               );
             })}
           </div>
@@ -111,7 +125,7 @@ export default async function PosFloorPlanPage() {
                           style={{
                             left: `${table.posX}%`,
                             top: `${table.posY}%`,
-                            width: "6.5rem",
+                            width: seatBoxWidth(table.seats),
                           }}
                           className="absolute -translate-x-1/2 -translate-y-1/2"
                         >
@@ -132,6 +146,23 @@ export default async function PosFloorPlanPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * "Bu adisyonda tahsil edilecek bir şey kalmadı, kapatılmayı bekliyor"
+ * işareti — tıklanabilir DEĞİL, salt görsel bir uyarı (kapatma işlemi
+ * `/cash/[orderId]`'de, `closeZeroOrder`).
+ */
+function ZeroTotalBadge() {
+  return (
+    <span
+      aria-hidden
+      title="0 ₺ — kapatılmayı bekliyor"
+      className="absolute -right-1.5 -top-1.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border border-danger/40 bg-surface text-xs font-bold text-danger"
+    >
+      ✕
+    </span>
   );
 }
 
@@ -176,24 +207,27 @@ function TableCard({
   const urgent = minutes >= 60;
 
   return (
-    <Link
-      href={`/pos/masa/${table.id}`}
-      className={`flex flex-col items-start gap-1 rounded-xl border text-left transition-colors ${padding} ${
-        urgent
-          ? "border-warn/50 bg-warn/10"
-          : "border-brand-300 bg-brand-50/50 hover:bg-brand-50"
-      }`}
-    >
-      <span className={compact ? "text-sm font-bold text-ink" : "text-lg font-bold text-ink"}>
-        {table.name}
-      </span>
-      <span className="text-xs text-ink-muted">
-        {minutes} dk
-        {!compact && openOrder.pendingCount > 0 ? ` · ${openOrder.pendingCount} gönderilmedi` : ""}
-      </span>
-      <span className="mt-1 text-sm font-semibold tabular-nums text-ink">
-        {formatMoney(money(openOrder.total))}
-      </span>
-    </Link>
+    <div className="relative">
+      {openOrder.total === 0 ? <ZeroTotalBadge /> : null}
+      <Link
+        href={`/pos/masa/${table.id}`}
+        className={`flex flex-col items-start gap-1 rounded-xl border text-left transition-colors ${padding} ${
+          urgent
+            ? "border-warn/50 bg-warn/10"
+            : "border-brand-300 bg-brand-50/50 hover:bg-brand-50"
+        }`}
+      >
+        <span className={compact ? "text-sm font-bold text-ink" : "text-lg font-bold text-ink"}>
+          {table.name}
+        </span>
+        <span className="text-xs text-ink-muted">
+          {minutes} dk
+          {!compact && openOrder.pendingCount > 0 ? ` · ${openOrder.pendingCount} gönderilmedi` : ""}
+        </span>
+        <span className="mt-1 text-sm font-semibold tabular-nums text-ink">
+          {formatMoney(money(openOrder.total))}
+        </span>
+      </Link>
+    </div>
   );
 }
