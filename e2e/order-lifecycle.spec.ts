@@ -42,6 +42,7 @@ test("adisyon: masa aç → ürün ekle → mutfağa gönder → öde → kapat"
 
   await expect(page).toHaveURL(/\/cash\//);
   await page.getByRole("button", { name: "Tamamı" }).click();
+  await page.getByLabel("Ödeme sonrası masayı kapat").check();
   await page.getByRole("button", { name: "Ödemeyi al" }).click();
 
   await expect(page.getByText("Bu adisyon tamamen ödendi ve kapatıldı.")).toBeVisible({

@@ -27,17 +27,70 @@ const paymentSchema = z.object({
   orderId: z.uuid(),
   method: z.enum(["cash", "card", "meal_card", "on_account"]),
   amount: z.coerce.number().positive("Tutar sıfırdan büyük olmalı"),
+  closeAfterPayment: z.enum(["true", "false"]).optional(),
 });
 
 /**
- * Ödeme kaydeder. Toplam ödenen tutar adisyon tutarına ulaşınca (ya da
- * geçince) adisyonu otomatik kapatır.
+ * Bir adisyonu fiilen kapatır: durumu günceller, sonra stok düşümü/ÖKC
+ * fişi/sadakat puanı gibi YAN ETKİLERİ best-effort dener. `recordPayment`
+ * (kasiyer "ödeme sonrası kapat"ı işaretlediyse) ve `closeOrder` (masa
+ * önceden ödenmiş, müşteri kalkınca elle kapatılıyor) İKİSİ de bunu çağırır
+ * — kapanış NASIL tetiklendiyse tetiklensin aynı tamamlama mantığı çalışsın
+ * diye tek yerde.
+ */
+async function finalizeOrderClose(params: {
+  orderId: string;
+  tenantId: string;
+  userId: string;
+  customerId: string | null;
+  totalLira: number;
+  orderNo: number | null;
+  supabase: Awaited<ReturnType<typeof createClient>>;
+}): Promise<void> {
+  const { orderId, tenantId, userId, customerId, totalLira, orderNo, supabase } = params;
+
+  const { error: closeError } = await supabase
+    .from("orders")
+    .update({ status: "closed", closed_at: new Date().toISOString() })
+    .eq("id", orderId)
+    .eq("status", "open");
+  if (closeError) return; // Zaten kapalıysa (yarış) sessizce çık — idempotent.
+
+  // Üçü de best-effort YAN ETKİ: biri başarısız olsa bile adisyon zaten
+  // kapandı, kasiyeriyi/müşteriyi burada bekletmiyoruz, yalnızca günlüğe
+  // düşüyor. `depleteOrderStock`'un kendi idempotency kısıtı (bkz. migration
+  // 0010) aynı adisyonun iki kez kapanmaya çalışmasını da güvenli kılıyor.
+  try {
+    await depleteOrderStock(orderId);
+  } catch (depletionError) {
+    console.error(`Stok düşümü başarısız (adisyon ${orderId}):`, depletionError);
+  }
+  try {
+    await fiscalDeviceAdapter.printReceipt({ orderId, orderNo, totalAmount: totalLira });
+  } catch (fiscalError) {
+    console.error(`ÖKC fişi kesilemedi (adisyon ${orderId}):`, fiscalError);
+  }
+  if (customerId) {
+    try {
+      await earnPointsForOrder({ tenantId, orderId, customerId, paidLira: totalLira, userId });
+    } catch (loyaltyError) {
+      console.error(`Puan kazandırılamadı (adisyon ${orderId}):`, loyaltyError);
+    }
+  }
+}
+
+/**
+ * Ödeme kaydeder.
  *
- * Bu iki adım (ödeme ekleme + kapanış kontrolü) tek bir veritabanı işlemi
- * DEĞİL — PostgREST üzerinden çok adımlı işlem yazmak bu ölçekte gereksiz
- * karmaşıklık. Sakınca yok: kapanış kontrolü idempotent (zaten kapalı bir
- * adisyonu "kapat" demek zararsız) ve ödeme kaydı zaten tamamlanmış oluyor —
- * en kötü ihtimalle adisyon bir sonraki sayfa yüklemesinde kapanır.
+ * ESKİDEN toplam ödenen tutar adisyon tutarına ulaşınca adisyon OTOMATİK
+ * kapanıyordu — bu, "masaya önden öde, sonra da otur/sipariş vermeye devam
+ * et" modelini kırıyordu: adisyon kapanınca masa "boş" görünüyor, aslında
+ * müşteri hâlâ oturuyor. Şimdi varsayılan davranış kapatmamak; kasiyer
+ * müşteri gerçekten kalkınca `closeOrder`'ı ayrıca çağırıyor. Klasik
+ * "masa sonda öder" akışı için kolaylık kaybolmasın diye kasiyer ödeme
+ * formunda "Ödeme sonrası masayı kapat"ı işaretleyebiliyor —
+ * `closeAfterPayment` o zaman "true" geliyor ve eski davranış (tam ödenince
+ * anında kapanış) opt-in olarak çalışıyor.
  */
 export async function recordPayment(
   _previous: ActionState,
@@ -48,6 +101,7 @@ export async function recordPayment(
       orderId: formData.get("orderId"),
       method: formData.get("method"),
       amount: formData.get("amount"),
+      closeAfterPayment: formData.get("closeAfterPayment") || undefined,
     });
 
     const user = await requireAppUser();
@@ -89,63 +143,18 @@ export async function recordPayment(
 
     if (error) return { error: error.message };
 
-    const updated = await loadOrderForPayment(input.orderId);
-    if (updated && compare(updated.paid, updated.total) >= 0) {
-      const { error: closeError } = await supabase
-        .from("orders")
-        .update({ status: "closed", closed_at: new Date().toISOString() })
-        .eq("id", input.orderId)
-        .eq("status", "open");
-
-      // İki ödeme isteği yarışıp ikisi de "tam ödendi" görse ve ikisi de
-      // depletion'ı tetiklese bile sorun değil: stok_movements'taki
-      // (reference_type, reference_id, ürün) unique kısıtı ikinci denemeyi
-      // sessizce atlıyor (bkz. depleteOrderStock). Satır sayısına göre
-      // gate'lemeye gerek yok — idempotency zaten alt katmanda garantili.
-      //
-      // Hata YUTULUYOR, ödeme başarısızlığına dönüştürülmüyor: ödeme zaten
-      // kaydedildi ve adisyon zaten kapandı — kasiyerin ekranında "ödeme
-      // başarısız" görünmesi burada gerçekleşmedi. Stok düşümü bir YAN ETKİ;
-      // başarısız olursa (ör. service_role henüz yapılandırılmadıysa) gerçek
-      // bir hata olarak günlüğe düşer ama müşteriyi kasada bekletmez.
-      if (!closeError) {
-        try {
-          await depleteOrderStock(input.orderId);
-        } catch (depletionError) {
-          console.error(
-            `Stok düşümü başarısız (adisyon ${input.orderId}):`,
-            depletionError,
-          );
-        }
-
-        // ÖKC fişi de aynı desende bir YAN ETKİ: gerçek cihaz bağlanana
-        // kadar mock adaptör yalnızca günlüğe yazıyor (bkz.
-        // src/lib/integrations). Başarısız olsa bile ödemeyi geri almıyoruz.
-        try {
-          await fiscalDeviceAdapter.printReceipt({
-            orderId: input.orderId,
-            orderNo: updated.orderNo,
-            totalAmount: toLira(updated.total),
-          });
-        } catch (fiscalError) {
-          console.error(`ÖKC fişi kesilemedi (adisyon ${input.orderId}):`, fiscalError);
-        }
-
-        // Sadakat puanı da aynı desende bir YAN ETKİ — kazanamamak ödemeyi
-        // geri almaz, yalnızca günlüğe düşer.
-        if (order.customer_id) {
-          try {
-            await earnPointsForOrder({
-              tenantId: user.tenantId,
-              orderId: input.orderId,
-              customerId: order.customer_id,
-              paidLira: toLira(updated.total),
-              userId: user.userId,
-            });
-          } catch (loyaltyError) {
-            console.error(`Puan kazandırılamadı (adisyon ${input.orderId}):`, loyaltyError);
-          }
-        }
+    if (input.closeAfterPayment === "true") {
+      const updated = await loadOrderForPayment(input.orderId);
+      if (updated && compare(updated.paid, updated.total) >= 0) {
+        await finalizeOrderClose({
+          orderId: input.orderId,
+          tenantId: user.tenantId,
+          userId: user.userId,
+          customerId: order.customer_id,
+          totalLira: toLira(updated.total),
+          orderNo: updated.orderNo,
+          supabase,
+        });
       }
     }
   } catch (error) {
@@ -158,39 +167,42 @@ export async function recordPayment(
 }
 
 /**
- * Tutarı sıfırlanmış (tamamı ikram/iskonto/kupon/puanla karşılanmış) bir
- * adisyonu ödeme almadan kapatır.
+ * Bir adisyonu elle kapatır — iki durumda kullanılabilir: (1) tutar zaten
+ * sıfır (tamamı ikram/kupon/puanla karşılanmış, `recordPayment`den hiç
+ * geçemez çünkü `amount` sıfırdan büyük olmak zorunda), (2) tam ödenmiş ama
+ * kasiyer "ödeme sonrası kapat"ı işaretlemediği için açık kalmış (masa
+ * önceden ödenip müşteri hâlâ oturuyorken kullanılan asıl senaryo — müşteri
+ * kalkınca kasiyer burada kapatır).
  *
- * `recordPayment`'ın `amount` alanı `.positive()` — yani tutarı 0 TL'ye
- * düşmüş bir adisyon, hiçbir zaman pozitif bir ödeme tutarı giremeyeceği
- * için normal akıştan ASLA kapanamıyordu; masada/kasada süresiz "0 TL"
- * olarak takılı kalıyordu. Bu, kasiyerin kendi beyanına değil, sunucunun
- * KENDİ hesapladığı toplama güveniyor — `isZero` kontrolü burada.
+ * İkisinde de kontrol AYNI: sunucunun kendi hesapladığı `remaining` sıfır
+ * olmalı — kasiyerin "zaten ödendi" beyanına güvenilmiyor.
  */
-export async function closeZeroOrder(formData: FormData): Promise<void> {
+export async function closeOrder(formData: FormData): Promise<void> {
   const orderId = z.uuid().parse(formData.get("orderId"));
+  const user = await requireAppUser();
   const supabase = await createClient();
 
-  const order = await loadOrderForPayment(orderId);
-  if (!order || order.status !== "open") return;
-  if (!isZero(order.total)) {
-    throw new Error("Bu adisyonun tutarı sıfır değil, ödeme almadan kapatılamaz.");
-  }
-
-  const { error } = await supabase
+  const { data: order } = await supabase
     .from("orders")
-    .update({ status: "closed", closed_at: new Date().toISOString() })
+    .select("customer_id")
     .eq("id", orderId)
-    .eq("status", "open");
-  if (error) throw new Error(error.message);
+    .maybeSingle();
 
-  // Aynı best-effort desen — bkz. `recordPayment`: stok düşümü başarısız
-  // olsa bile adisyon zaten kapandı, kasiyeri burada bekletmiyoruz.
-  try {
-    await depleteOrderStock(orderId);
-  } catch (depletionError) {
-    console.error(`Stok düşümü başarısız (adisyon ${orderId}):`, depletionError);
+  const updated = await loadOrderForPayment(orderId);
+  if (!updated || updated.status !== "open") return;
+  if (!isZero(updated.remaining)) {
+    throw new Error("Bu adisyonda ödenmemiş bir bakiye var, önce ödeme alınmalı.");
   }
+
+  await finalizeOrderClose({
+    orderId,
+    tenantId: user.tenantId,
+    userId: user.userId,
+    customerId: order?.customer_id ?? null,
+    totalLira: toLira(updated.total),
+    orderNo: updated.orderNo,
+    supabase,
+  });
 
   revalidatePath("/cash", "layout");
   revalidatePath("/pos", "layout");

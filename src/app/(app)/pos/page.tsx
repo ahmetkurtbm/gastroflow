@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { formatMoney, money } from "@/core/money";
-import { closeZeroOrder } from "@/lib/cash/actions";
+import { closeOrder } from "@/lib/cash/actions";
 import { requireAppUser } from "@/lib/auth/current-user";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
 import { getServerDictionary } from "@/lib/i18n/server";
@@ -184,7 +184,7 @@ export default async function PosFloorPlanPage() {
  */
 function ZeroTotalBadge({ orderId }: { orderId: string }) {
   return (
-    <form action={closeZeroOrder} className="absolute -right-1.5 -top-1.5 z-10">
+    <form action={closeOrder} className="absolute -right-1.5 -top-1.5 z-10">
       <input type="hidden" name="orderId" value={orderId} />
       <button
         type="submit"

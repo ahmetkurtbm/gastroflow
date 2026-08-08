@@ -54,7 +54,7 @@ test("0 TL adisyon: ödeme almadan 'Adisyonu kapat' ile kapanır", async ({ page
   await page.goto(`/cash/${order!.id}`);
 
   await expect(page.getByText("Tahsil edilecek bir tutar yok")).toBeVisible();
-  const closeButton = page.getByRole("button", { name: "Adisyonu kapat (0 ₺)" });
+  const closeButton = page.getByRole("button", { name: "Masayı/Adisyonu Kapat" });
   await expect(closeButton).toBeVisible();
   await closeButton.click();
 

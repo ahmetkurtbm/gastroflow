@@ -69,6 +69,7 @@ test("sadakat: ödeme puan kazandırır, sonraki adisyonda o puan indirim olarak
   await expect(page.getByText(phone)).toBeVisible({ timeout: 10_000 });
 
   await page.getByRole("button", { name: "Tamamı" }).click();
+  await page.getByLabel("Ödeme sonrası masayı kapat").check();
   await page.getByRole("button", { name: "Ödemeyi al" }).click();
   await expect(page.getByText("Bu adisyon tamamen ödendi ve kapatıldı.")).toBeVisible({ timeout: 10_000 });
 

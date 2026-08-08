@@ -87,6 +87,15 @@ export function PaymentForm({
         </Field>
       </div>
 
+      {/* Varsayılan KAPALI: masaya önden ödeyip oturmaya devam eden müşteri
+          modelini kırmamak için ödeme artık adisyonu otomatik kapatmıyor
+          (bkz. `recordPayment`'ın doc-comment'i) — kasiyer isterse klasik
+          "öde ve bitir" akışını burada işaretleyerek geri açabiliyor. */}
+      <label className="flex items-center gap-2 text-sm text-ink">
+        <input type="checkbox" name="closeAfterPayment" value="true" className="h-4 w-4 rounded border-line" />
+        Ödeme sonrası masayı kapat
+      </label>
+
       <FormError message={state.error} />
 
       <SubmitButton>{dict.payButton}</SubmitButton>
