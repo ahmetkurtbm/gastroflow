@@ -1,21 +1,13 @@
 import ExcelJS from "exceljs";
 
-/**
- * Excel şablon/dışa aktarım ortak katmanı.
- *
- * `xlsx` (SheetJS) paketi DEĞİL — npm'de yayınlanan sürümde düzeltilmemiş
- * bir prototype pollution ve ReDoS açığı var (GHSA-4r6h-8v6p-xvw6,
- * GHSA-5pgg-2g8v-p4x9). Bu kod KULLANICI YÜKLEDİĞİ dosyaları ayrıştırıyor —
- * yani doğrudan saldırı yüzeyi. `exceljs` aktif bakımlı, eşdeğer bir bilinen
- * açığı yok.
- *
- * Üç ekran (menü, hammadde, fiş) aynı üç adımlı deseni kullanıyor: şablon
- * indir → Excel'de doldur/düzenle → geri yükle. Bu dosya o deseni tek
- * yerde uyguluyor, her ekran yalnızca sütun tanımını ve satır eşleme
- * mantığını sağlıyor.
- */
+// Kullanıcı yüklediği dosyalar ayrıştırıldığı için `xlsx` (SheetJS) yerine
+// bakımı süren `exceljs` kullanılıyor; npm'deki SheetJS sürümünde düzeltilmemiş
+// prototype pollution ve ReDoS açıkları var.
 
-/** İçe aktarma eylemlerinin ortak dönüş şekli — üç ekran da aynı tipi kullanır. */
+const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
+const MAX_IMPORT_ROWS = 5000;
+
+/** İçe aktarma eylemlerinin ortak dönüş tipi. */
 export type ImportResult = { error?: string; ok?: boolean; created?: number; updated?: number; skipped?: number };
 
 export type ColumnDef = {
@@ -24,7 +16,7 @@ export type ColumnDef = {
   width?: number;
 };
 
-/** Şablon/dışa aktarım dosyası üretir — hem "boş şablon indir" hem "mevcut veriyi dışa aktar" aynı fonksiyon. */
+/** Boş şablon ya da mevcut verinin dışa aktarımı için .xlsx üretir. */
 export async function buildWorkbookBuffer(
   sheetName: string,
   columns: ColumnDef[],
@@ -36,13 +28,8 @@ export async function buildWorkbookBuffer(
   sheet.getRow(1).font = { bold: true };
   for (const row of rows) sheet.addRow(row);
   const raw = await workbook.xlsx.writeBuffer();
-  // `writeBuffer()`'ın dönüş tipi (ExcelJS'in kendi Buffer sürümü) bu
-  // projedeki `@types/node` ile jenerik parametre uyuşmazlığı yaşıyor
-  // (`Buffer<ArrayBuffer>` vs `Buffer`, muhtemelen node_modules'te iki farklı
-  // @types/node kopyası) — çalışma zamanında ikisi de aynı gerçek bayt
-  // dizisi. Belirsiz `ArrayBufferLike` (SharedArrayBuffer olabilir) yerine
-  // KESİN bir `ArrayBuffer`'a bayt kopyalayıp `BlobPart` uyumlu, temiz bir
-  // `Uint8Array<ArrayBuffer>` döndürüyoruz.
+  // ExcelJS'in Buffer tipi projedeki @types/node ile uyuşmuyor; baytlar düz
+  // bir ArrayBuffer'a kopyalanıyor.
   const bytes = new Uint8Array(raw as unknown as ArrayLike<number>);
   const arrayBuffer = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(arrayBuffer).set(bytes);
@@ -52,25 +39,25 @@ export async function buildWorkbookBuffer(
 export type ParsedRow = Record<string, string>;
 
 /**
- * Yüklenen bir .xlsx dosyasını satır satır okur — ilk satır başlık, sonraki
- * her satır `{ başlık: hücre metni }` şeklinde döner. Sayı/tarih ayrıştırma
- * ÇAĞIRANA bırakılıyor (her ekranın kendi zod şeması var) — burası yalnızca
- * "dosyayı satırlara çevir".
- *
- * Baştan sona TAMAMEN boş bir satır atlanır — Excel'de kullanıcı genelde
- * dosyanın sonuna birkaç boş satır bırakır, bunları "geçersiz veri" diye
- * reddetmek can sıkıcı olurdu.
+ * Yüklenen .xlsx dosyasının ilk sayfasını satırlara çevirir: ilk satır başlık,
+ * diğerleri `{ başlık: hücre metni }`. Tamamen boş satırlar atlanır; sayı ve
+ * tarih ayrıştırması çağırana bırakılır.
  */
 export async function parseWorkbookRows(file: File): Promise<ParsedRow[]> {
+  if (file.size > MAX_IMPORT_BYTES) {
+    throw new Error("Dosya en fazla 2 MB olabilir.");
+  }
+
   const workbook = new ExcelJS.Workbook();
   const arrayBuffer = await file.arrayBuffer();
-  // `as any`: bkz. `buildWorkbookBuffer`'daki aynı Buffer jenerik
-  // uyuşmazlığı notu — yalnızca tip seviyesinde, çalışma zamanında sorun yok.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- yukarıdaki Buffer tip uyuşmazlığı
   await workbook.xlsx.load(Buffer.from(arrayBuffer) as any);
 
   const sheet = workbook.worksheets[0];
   if (!sheet) return [];
+  if (sheet.rowCount > MAX_IMPORT_ROWS + 1) {
+    throw new Error(`Dosya en fazla ${MAX_IMPORT_ROWS} satır içerebilir.`);
+  }
 
   const headerRow = sheet.getRow(1);
   const headers: string[] = [];

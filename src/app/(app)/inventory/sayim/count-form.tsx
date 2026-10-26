@@ -7,15 +7,8 @@ import { useOfflineCount } from "@/lib/offline/use-offline-count";
 const PAGE_SIZE = 8;
 
 /**
- * Körleme, sayfa sayfa sayım formu — bilinçli olarak sistemdeki bakiyeyi
- * GÖSTERMEZ. Sayan kişi rafta ne görürse onu yazar; fark sunucuda
- * hesaplanır (bkz. `recordCount`).
- *
- * Ürünler sabit boyutlu sayfalara bölünüyor: uzun bir hammadde listesini tek
- * ekranda kaydırmak (özellikle telefonda) hem yorucu hem hataya açık —
- * "hangi satırdaydım" kaybolabiliyor. Her sayfa "İleri" ile ayrı ayrı,
- * offline kuyruğa (bkz. `useOfflineCount`) kaydediliyor; bağlantı kesikse
- * bile sayım kaybolmaz, bağlantı gelince arka planda senkronlanır.
+ * Körleme sayım formu: sistemdeki bakiyeyi göstermez, fark sunucuda hesaplanır.
+ * Ürünler sayfalara bölünür ve her sayfa offline kuyruğa ayrı kaydedilir.
  */
 export function CountForm({
   locationId,

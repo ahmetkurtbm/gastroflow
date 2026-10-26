@@ -26,16 +26,11 @@ export type NotificationRuleRow = {
   eventType: NotificationEventType;
   isEnabled: boolean;
   recipientRoles: string[];
-  /** Tenant hiç kural kaydetmediyse varsayılan roller gösteriliyor — bu satır DB'de yok. */
+  /** Tenant kural kaydetmemişse varsayılan roller gösterilir; satır DB'de yok. */
   isDefault: boolean;
 };
 
-/**
- * Yedi olay tipinin tümü için bir satır döner — tenant bazı olaylar için
- * kural kaydetmemiş olabilir, o durumda varsayılan roller gösterilir.
- * Ayarlar ekranında "hiç yapılandırılmamış" ile "boş alıcı listesiyle
- * kapatılmış" arasındaki fark böyle görünür kalır.
- */
+/** Yedi olay tipinin her biri için kural; kaydedilmemişse varsayılan roller. */
 export async function loadNotificationRules(): Promise<NotificationRuleRow[]> {
   const supabase = await createClient();
   const { data } = await supabase
@@ -149,12 +144,7 @@ function formatLira(value: number): string {
   return value.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ₺";
 }
 
-/**
- * `/m` mobil panelindeki olay akışı — `notification_outbox`'ı olduğu gibi
- * gösteriyor (ayrı bir "olay geçmişi" tablosu yok, ihtiyaç da yok: outbox
- * zaten "neler oldu"nun tam kaydı, bkz. Faz 5). Ürün/lokasyon/tedarikçi
- * adlarını payload'daki kimliklerden toplu (N+1 değil) çözüyor.
- */
+/** `/m` panelindeki olay akışı; outbox'taki kimlikler toplu olarak adlara çözülür. */
 export async function loadRecentAlerts(limit = 15): Promise<AlertRow[]> {
   const supabase = await createClient();
   const { data } = await supabase

@@ -6,11 +6,7 @@ import type { ImportResult } from "@/lib/excel/workbook";
 
 const initial: ImportResult = {};
 
-/**
- * "Şablon indir → doldur → yükle" deseninin ortak UI'ı — menü ürünleri,
- * hammaddeler ve (ileride) benzer toplu içe aktarma ekranları aynı bileşeni
- * kullanıyor, yalnızca `action` ve indirme linkleri değişiyor.
- */
+/** "Şablon indir → doldur → yükle" akışının ortak arayüzü. */
 export function ExcelImportForm({
   action,
   templateHref,
@@ -18,13 +14,10 @@ export function ExcelImportForm({
   hiddenFields,
 }: {
   action: (previous: ImportResult, formData: FormData) => Promise<ImportResult>;
-  /** Boş, örnek satırlı şablon — ilk kurulum için. */
   templateHref: string;
-  /** Mevcut veriyi aynı formatta indirir — toplu düzenleyip geri yüklemek için.
-   * Yoksa (ör. körleme sayım) yalnızca şablon linki gösterilir. */
+  /** Mevcut veriyi aynı biçimde indirme bağlantısı; yoksa yalnızca şablon gösterilir. */
   exportHref?: string;
-  /** Tedarikçi/şube gibi, dosyanın kendisinde OLMAYAN ama eylemin ihtiyaç
-   * duyduğu bağlam — ör. hangi tedarikçinin fiyat listesi olduğu. */
+  /** Dosyada olmayan ama eylemin ihtiyaç duyduğu bağlam (ör. tedarikçi). */
   hiddenFields?: Record<string, string>;
 }) {
   const [state, formAction] = useActionState(action, initial);

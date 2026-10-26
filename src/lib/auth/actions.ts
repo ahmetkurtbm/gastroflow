@@ -14,13 +14,7 @@ const credentialsSchema = z.object({
 
 export type LoginState = { error?: string };
 
-/**
- * E-posta + şifre ile giriş.
- *
- * Hata mesajı bilerek geneldir ("e-posta veya şifre hatalı"). "Bu e-posta kayıtlı
- * değil" demek, saldırgana hangi adreslerin sistemde olduğunu tek tek sorgulama
- * imkânı verirdi (kullanıcı sayımı / user enumeration).
- */
+/** E-posta ve şifreyle giriş. Hata mesajı, kayıtlı e-postaları sızdırmamak için geneldir. */
 export async function signIn(
   _previous: LoginState,
   formData: FormData,
@@ -41,12 +35,11 @@ export async function signIn(
     return { error: "E-posta veya şifre hatalı." };
   }
 
-  // Giriş başarılı; artık token'da claim'ler var. Kullanıcıyı kendi ana
-  // ekranına yolluyoruz — garsonu rapor sayfasına düşürmenin anlamı yok.
+  // Kullanıcı rolünün ana ekranına yönlendirilir.
   const { data } = await supabase.auth.getClaims();
   const app = parseAppClaims(data?.claims);
 
-  // redirect() bir istisna fırlatarak çalışır; try/catch içine alınmamalı.
+  // redirect() istisna fırlatarak çalışır; try/catch içinde olmamalı.
   redirect(app ? ROLE_HOME[app.role] : "/login");
 }
 

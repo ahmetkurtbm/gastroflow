@@ -77,12 +77,8 @@ export type ReorderSuggestion = {
 };
 
 /**
- * Kritik seviyenin altındaki ürünler + (varsa) tedarikçi/fiyat önerisi.
- *
- * Önerilen miktar = par_level'daki üst sınıra (varsa) ya da eşiğin iki
- * katına tamamlayacak kadar. Birden fazla tedarikçisi olan bir üründe İLK
- * bulunan tercih ediliyor — çoklu tedarikçi kıyaslaması (en ucuz/en hızlı)
- * kapsam dışı, tek-tedarikçili küçük işletme senaryosu için yeterli.
+ * Kritik seviyenin altındaki ürünler ve tedarikçi önerisi. Önerilen miktar
+ * par seviyesine ya da eşiğin iki katına tamamlar; birden çok tedarikçide ilki seçilir.
  */
 export async function loadReorderSuggestions(): Promise<ReorderSuggestion[]> {
   const supabase = await createClient();
@@ -246,7 +242,7 @@ export type PendingPurchaseOrder = {
   totalAmount: number;
 };
 
-/** `/m` mobil panelindeki "bekleyen onaylar" akışı için — yalnızca onay bekleyenler. */
+/** `/m` panelindeki onay bekleyen siparişler. */
 export async function loadPendingPurchaseOrders(): Promise<PendingPurchaseOrder[]> {
   const supabase = await createClient();
   const { data } = await supabase

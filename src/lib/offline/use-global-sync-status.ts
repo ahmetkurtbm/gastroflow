@@ -20,14 +20,8 @@ function getOnlineServerSnapshot() {
 }
 
 /**
- * Uygulama kabuğundaki GENEL bağlantı/kuyruk göstergesi.
- *
- * `useOfflineOrder`/`useOfflineCount`'tan farkı: bu hook hiçbir şeyi
- * SENKRONLAMIYOR, yalnızca GÖZLEMLİYOR — hangi ekranda olursa olsun
- * ("Sipariş Al" ekranından çıkıp Raporlar'a geçmiş olsa bile) personel
- * "bağlantım var mı, bekleyen bir işlem var mı" sorusunun cevabını görsün
- * diye. Gerçek senkronu, o mutasyonun ait olduğu ekranın kendi hook'u
- * (kullanıcı o ekrana dönünce) yapar.
+ * Uygulama kabuğundaki genel bağlantı ve kuyruk göstergesi. Yalnızca gözlemler;
+ * senkronu mutasyonun ait olduğu ekranın hook'u yapar.
  */
 export function useGlobalSyncStatus() {
   const isOnline = useSyncExternalStore(
@@ -46,9 +40,6 @@ export function useGlobalSyncStatus() {
     }
 
     void refresh();
-    // Pasif bir gösterge — aktif senkron denemiyor, yalnızca kuyruk
-    // uzunluğunu düşük sıklıkta tazeliyor. Gerçek senkron ilgili ekranın
-    // hook'undan tetiklendiğinde bu sayı da bir sonraki turda güncellenir.
     const interval = setInterval(() => void refresh(), 4_000);
 
     return () => {

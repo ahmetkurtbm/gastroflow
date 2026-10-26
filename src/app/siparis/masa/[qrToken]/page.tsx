@@ -6,13 +6,7 @@ import { QrOrderScreen } from "./qr-order-screen";
 
 export const metadata: Metadata = { title: "Sipariş Ver" };
 
-/**
- * Masaya yapıştırılan QR kodun açtığı sayfa — GİRİŞ GEREKTİRMEZ.
- *
- * `(app)` rota grubunun dışında olduğu için `requireAppUser()` zinciriyle
- * hiç kesişmiyor (bkz. `src/app/(app)/layout.tsx`). Güvenlik sınırı token'ın
- * kendisi — bkz. `loadQrMenu` ve `placeQrOrder` doc-comment'leri.
- */
+/** QR kodun açtığı, giriş gerektirmeyen sipariş sayfası; güvenlik sınırı token'dır. */
 export default async function QrOrderPage({
   params,
 }: {

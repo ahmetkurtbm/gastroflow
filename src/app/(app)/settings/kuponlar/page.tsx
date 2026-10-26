@@ -10,13 +10,7 @@ export const metadata: Metadata = { title: "Kuponlar" };
 
 const dateFormatter = new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeZone: "Europe/Istanbul" });
 
-/**
- * Ayarlar → Kuponlar: indirim kodu tanımlama.
- *
- * Kodun ödeme ekranında NASIL uygulandığı burada değil — bkz.
- * `/cash/[orderId]` (`applyCouponToOrder`, src/lib/coupons/actions.ts).
- * Burası yalnızca "hangi kodlar var, kaçı kullanılmış" yönetimi.
- */
+/** İndirim kodu tanımlama; ödeme ekranındaki uygulama için bkz. applyCouponToOrder. */
 export default async function CouponsSettingsPage() {
   const coupons = await loadCouponsAdmin();
 

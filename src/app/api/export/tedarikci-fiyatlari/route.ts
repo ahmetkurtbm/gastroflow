@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requireAppUser } from "@/lib/auth/current-user";
+import { requirePathAccess } from "@/lib/auth/current-user";
 import { buildWorkbookBuffer } from "@/lib/excel/workbook";
 import { createClient } from "@/lib/supabase/server";
 
@@ -11,13 +11,11 @@ const COLUMNS = [
   { header: "Min. Sipariş", key: "minOrder", width: 14 },
 ];
 
-/**
- * Bir tedarikçinin fiyat listesini Excel olarak indirir — `?template=1` boş
- * örnek şablon, aksi hâlde o tedarikçinin GastroFlow'daki mevcut listesi.
- * `supplierId` zorunlu — fiyat listesi her zaman tek bir tedarikçiye ait.
- */
+/** Tedarikçinin fiyat listesi: `?template=1` boş şablon. `supplierId` zorunludur. */
 export async function GET(request: Request) {
-  await requireAppUser();
+  if (!(await requirePathAccess("/purchasing"))) {
+    return new NextResponse(null, { status: 403 });
+  }
   const url = new URL(request.url);
   const isTemplate = url.searchParams.get("template") === "1";
   const supplierId = url.searchParams.get("supplierId");

@@ -2,13 +2,7 @@
 
 import { useFormStatus } from "react-dom";
 
-/**
- * Form yapı taşları.
- *
- * Ayrı bileşen olmalarının sebebi tutarlılık değil, erişilebilirlik: her
- * alanın etiketiyle bağlı olması ve her hatanın `role="alert"` taşıması
- * elle yazıldığında er ya da geç unutuluyor.
- */
+// Etiket bağlantısı ve `role="alert"` hataları her alanda tutarlı olsun diye ortak form bileşenleri.
 
 const inputClass =
   "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted/60 disabled:opacity-60";
@@ -66,7 +60,6 @@ export function SubmitButton({
   children: React.ReactNode;
   variant?: "primary" | "secondary" | "danger";
 }) {
-  // useFormStatus, çift gönderimi engellemek için formun kendi durumunu okur.
   const { pending } = useFormStatus();
 
   const styles = {

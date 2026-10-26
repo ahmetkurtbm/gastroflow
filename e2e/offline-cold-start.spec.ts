@@ -13,7 +13,7 @@ async function readState() {
   return JSON.parse(raw) as { orderFlow: TestTenant; isolationOther: TestTenant };
 }
 
-// AGENTS.md "Offline kuyruk — kapsam sınırı" bunu açık bir sınır olarak
+// Offline kuyruk kapsam sınırı (README) bunu açık bir sınır olarak
 // belgeliyordu: sayfa navigasyonu service worker olmadan offline çalışamaz.
 // public/sw.js bunu bir sayfa ÖNCE ONLINE ziyaret edildiyse kapatıyor —
 // bu test tam olarak o iddiayı kanıtlıyor: aç → önbellekle → çevrimdışına

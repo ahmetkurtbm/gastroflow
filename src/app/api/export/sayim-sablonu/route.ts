@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requireAppUser } from "@/lib/auth/current-user";
+import { requirePathAccess } from "@/lib/auth/current-user";
 import { buildWorkbookBuffer } from "@/lib/excel/workbook";
 import { createClient } from "@/lib/supabase/server";
 
@@ -9,15 +9,11 @@ const COLUMNS = [
   { header: "Sayılan Miktar", key: "counted", width: 16 },
 ];
 
-/**
- * Sayım şablonu — KÖRLEME: sistemdeki mevcut bakiye buraya BİLEREK
- * yazılmıyor (bkz. `count-form.tsx`'teki aynı prensip), yalnızca hammadde
- * adları var, "Sayılan Miktar" boş. Bu yüzden `?template=1` dışında bir
- * mod yok — "mevcut veriyi indir" burada anlamsız, sayım her seferinde
- * sıfırdan bir olay.
- */
+/** Körleme sayım şablonu: mevcut bakiye yazılmaz, yalnızca hammadde adları vardır. */
 export async function GET() {
-  await requireAppUser();
+  if (!(await requirePathAccess("/inventory"))) {
+    return new NextResponse(null, { status: 403 });
+  }
   const supabase = await createClient();
 
   const { data } = await supabase

@@ -6,20 +6,9 @@ import { loadCatalog } from "@/lib/recipes/catalog";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 /**
- * Satıştan otomatik stok düşümü.
- *
- * Adisyon kapandığında çağrılır (bkz. `src/lib/cash/actions.ts`). Her satırın
- * reçetesi, SATIŞ ANINDA DONDURULMUŞ versiyonuyla (`order_lines.recipe_version_id`)
- * açılır — "dün satılan pizza dünkü gramajıyla düşülmeli" ilkesi.
- *
- * Reçete matematiği tekrar yazılmıyor: `explodeToIngredients` (src/core/recipe.ts,
- * Faz 1'de test edilmiş) aynen kullanılıyor. Buradaki tek iş, dondurulmuş
- * versiyonun satırlarını geçici olarak kataloğa yerleştirip mevcut motoru
- * çağırmak.
- *
- * `service_role` KULLANILIYOR: depletion bir garsonun/kasiyerin doğrudan
- * eylemi değil, ödemenin bir YAN ETKİSİ. Kasiyere stok yazma yetkisi vermek
- * (RLS `can_write_stock()`) gerçek yetkilerini gereksiz genişletirdi.
+ * Adisyon kapanınca satıştan stok düşer. Her satır satış anında dondurulan
+ * reçete versiyonuyla açılır. Ödemenin sistem yan etkisi olduğu için service
+ * role kullanılır; kasiyere stok yazma yetkisi verilmez.
  */
 
 type LineToProcess = {
@@ -55,9 +44,7 @@ export async function depleteOrderStock(orderId: string): Promise<void> {
 
   if (toProcess.length === 0) return;
 
-  // Ana depo: Faz 3'ün bu ilk sürümünde şube başına tek lokasyon kullanılıyor.
-  // Mutfak/bar arası transfer ayrı bir iş (bkz. proje panosu) — o geldiğinde
-  // "hangi lokasyondan düşülür" sorusu reçeteye bağlı hâle gelecek.
+  // Şube başına şimdilik tek stok lokasyonu var.
   const { data: location } = await supabase
     .from("stock_locations")
     .select("id")
@@ -69,15 +56,10 @@ export async function depleteOrderStock(orderId: string): Promise<void> {
 
   if (!location) return; // Şube için henüz lokasyon tanımlanmamış — sessizce atla.
 
-  // `loadCatalog()` normalde çağıranın oturumunu kullanır ve `can_read_costs()`
-  // gerektirir — kasiyer/garson bu yetkiye sahip değil. Depletion bir sistem
-  // yan etkisi olduğu için burada da service_role kullanıyoruz.
   const { catalog } = await loadCatalog({ client: supabase });
   const recipesById = new Map(catalog.recipes.map((r) => [r.id, r]));
   const ingredientsById = new Map(catalog.ingredients.map((i) => [i.id, i]));
 
-  // Dondurulmuş versiyonların gerçek satırlarını çek; her biri farklı bir
-  // recipe_id'ye (menü ürününe) ait olabilir.
   const versionIds = [...new Set(toProcess.map((l) => l.recipeVersionId))];
   const { data: versions } = await supabase
     .from("recipe_versions")
@@ -90,11 +72,8 @@ export async function depleteOrderStock(orderId: string): Promise<void> {
     const recipe = recipesById.get(version.recipe_id);
     if (!recipe) continue; // Reçete o sırada pasife alınmış olabilir.
 
-    // Katalogdaki (güncel aktif) versiyonu, dondurulmuş versiyonun satırlarıyla
-    // GEÇİCİ olarak değiştiriyoruz. Alt reçeteler (sos, hamur) hâlâ güncel aktif
-    // versiyonlarından okunur — bilinçli basitleştirme: alt reçete değişikliği
-    // üst reçeteninki kadar sık olmuyor ve her satışın tüm ağacını versiyonlamak
-    // bu aşamada gereksiz karmaşıklık olurdu.
+    // Üst reçete dondurulmuş satırlarıyla değiştirilir; alt reçeteler güncel
+    // aktif versiyondan okunur.
     recipesById.set(version.recipe_id, {
       ...recipe,
       yieldQuantity: Number(version.yield_quantity),
@@ -113,9 +92,7 @@ export async function depleteOrderStock(orderId: string): Promise<void> {
 
   const patchedCatalog = { ingredients: catalog.ingredients, recipes: [...recipesById.values()] };
 
-  // reference_type/reference_id/inventory_item_id üzerindeki unique kısıt
-  // idempotency'yi sağlıyor: aynı satırı iki kez işlemek (ör. ödeme kapanışı
-  // yeniden denenirse) ikinci denemede 23505 döner, biz onu yutuyoruz.
+  // Unique kısıt idempotency sağlar: aynı satır ikinci kez işlenirse 23505 döner.
   for (const line of toProcess) {
     const version = versions?.find((v) => v.id === line.recipeVersionId);
     if (!version) continue;
@@ -124,8 +101,7 @@ export async function depleteOrderStock(orderId: string): Promise<void> {
     try {
       needed = explodeToIngredients(version.recipe_id, patchedCatalog, line.quantitySold);
     } catch {
-      // Bozuk/döngüsel reçete: bu satırı atla, diğerlerini engelleme. Sorun
-      // /recipes ekranında zaten görünür oluyor (safeCost aynı hatayı yakalar).
+      // Bozuk reçete bu satırı atlatır; hata /recipes ekranında görünür.
       continue;
     }
 
@@ -151,7 +127,6 @@ export async function depleteOrderStock(orderId: string): Promise<void> {
         reference_id: line.orderLineId,
       });
 
-      // 23505 = zaten işlenmiş, sorun değil. Başka bir hata sessizce yutulmaz.
       if (error && error.code !== "23505") {
         throw new Error(
           `Stok düşümü başarısız (satır ${line.orderLineId}, ürün ${item.name}): ${error.message}`,

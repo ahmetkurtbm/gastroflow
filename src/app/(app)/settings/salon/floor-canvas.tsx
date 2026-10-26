@@ -5,8 +5,7 @@ import { useRef, useState } from "react";
 import { toggleTableOrientation, unplaceTable, updateTablePosition } from "@/lib/floor/actions";
 import type { FloorTableAdmin } from "@/lib/floor/queries";
 
-/** `/pos`'taki gerçek yerleşim görünümüyle AYNI ölçek — editörde büyük
- * gördüğün masa, garsonun ekranında da büyük görünmeli. */
+/** `/pos` yerleşim görünümüyle aynı ölçek. */
 function seatBoxSize(seats: number, vertical: boolean): { width: string; height: string } {
   const long = seats <= 2 ? "5rem" : seats <= 4 ? "6.5rem" : seats <= 8 ? "8rem" : "9.5rem";
   const short = "3.25rem";
@@ -14,19 +13,9 @@ function seatBoxSize(seats: number, vertical: boolean): { width: string; height:
 }
 
 /**
- * Görsel masa düzeni editörü — sürükle-bırak.
- *
- * İki farklı etkileşim, iki farklı ihtiyaç için:
- *   1. Yerleşmiş masa (pos_x/pos_y dolu): canvas içinde SÜRÜKLENEBİLİR
- *      (Pointer Events — fare ve dokunmatik aynı kodla, ekstra kütüphane
- *      yok). En sık kullanım budur: mevcut düzeni ince ayarlamak.
- *   2. Yerleşmemiş masa (yeni eklenmiş, henüz konumu yok): sürüklemek yerine
- *      "seç → canvas'a dokun" — tıkla-yerleştir. Sebep: tepsideki bir öğeyi
- *      canvas'a sürüklemek (cross-container drag) çok daha kırılgan bir
- *      etkileşim; dokunmatikte "tıkla-yerleştir" zaten daha doğal.
- *
- * Konum yüzde (0-100) olarak saklanıyor (bkz. migration 0009) — canvas
- * hangi ekran genişliğinde render olursa olsun aynı GÖRECELİ düzeni korur.
+ * Sürükle-bırak masa düzeni editörü. Yerleşmiş masa canvas içinde sürüklenir,
+ * yerleşmemiş masa seçilip canvas'a dokunularak yerleştirilir. Konum yüzde
+ * (0-100) saklanır, ekran genişliğinden bağımsızdır.
  */
 export function FloorCanvas({ tables }: { tables: FloorTableAdmin[] }) {
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -36,16 +25,8 @@ export function FloorCanvas({ tables }: { tables: FloorTableAdmin[] }) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [selectedUnplacedId, setSelectedUnplacedId] = useState<string | null>(null);
 
-  // `positions` yalnızca MOUNT'ta kuruluyor (yukarıdaki useState initializer).
-  // Bu bileşen `/settings/salon`'da kalıcı — bir masa eklendiğinde sayfa
-  // yeniden render olur ama React bu bileşeni YENİDEN MOUNT ETMEZ, `tables`
-  // prop'u güncellenir. Yeni masanın `positions`te henüz karşılığı olmadan
-  // `positions[t.id]` `undefined` dönüyordu; eski `!== null` kontrolü bunu
-  // "yerleşmiş" sayıp `pos.x`'e erişmeye çalışıyor, `pos` `undefined` olduğu
-  // için sayfa çöküyordu ("Bu sayfa yüklenemedi" hatasının GERÇEK sebebi).
-  // Effect içinde state senkronize etmek yerine (cascading render riski),
-  // konumu her render'da PROP'TAN türetiyoruz — state yalnızca aktif
-  // sürükleme/yerleştirme sırasında bir ÜST KATMAN olarak devreye giriyor.
+  // Konum her render'da prop'tan türetilir; state yalnızca aktif sürükleme
+  // sırasında üst katman olur. Sonradan eklenen masa böylece hep tanınır.
   function positionFor(table: FloorTableAdmin): { x: number; y: number } | null {
     if (table.id in positions) return positions[table.id];
     return table.posX !== null && table.posY !== null ? { x: table.posX, y: table.posY } : null;
@@ -78,8 +59,7 @@ export function FloorCanvas({ tables }: { tables: FloorTableAdmin[] }) {
     setDraggingId(null);
     if (point) {
       void updateTablePosition(draggingId, point.x, point.y).catch(() => {
-        // Sunucuya yazılamadıysa bir sonraki sayfa yenilemesinde eski konum
-        // geri gelir — burada sessizce yutuyoruz, kritik bir işlem değil.
+        // Yazılamazsa sayfa yenilenince eski konum geri gelir; kritik değil.
       });
     }
   }
@@ -94,13 +74,7 @@ export function FloorCanvas({ tables }: { tables: FloorTableAdmin[] }) {
 
   return (
     <div className="space-y-3">
-      {/* Sürükle-bırak, yüzde tabanlı x/y konumlar üzerinden çalışıyor — geniş
-          bir masaüstü canvas'ı için düşünülmüş. Dar bir telefon ekranında aynı
-          konumlar kutuları üst üste bindiriyordu (yatay bir yerleşimi dar bir
-          dikey şeride sıkıştırmaya çalışmak gibi) — hem sürüklemek dokunmatikte
-          zor hem de kutular çakışıyordu. Mobilde bu yüzden canvas yerine düz,
-          tek sütunlu bir liste gösteriyoruz (konum yalnızca masaüstünden
-          değiştirilebilir); tablet/masaüstünde canvas geri geliyor. */}
+      {/* Mobilde yüzde konumlar kutuları üst üste bindirdiği için canvas yerine liste gösterilir. */}
       {placed.length > 0 ? (
         <ul className="divide-y divide-line rounded-xl border border-line bg-surface-raised text-sm sm:hidden">
           {placed.map((table) => (
@@ -177,9 +151,7 @@ export function FloorCanvas({ tables }: { tables: FloorTableAdmin[] }) {
                 <span className="text-xs font-semibold text-ink">{table.name}</span>
                 <span className="text-[10px] text-ink-muted">{table.seats} kişilik</span>
               </button>
-              {/* Sürüklenebilir düğmenin İÇİNDE değil, yanında bir form —
-                  buton içinde buton geçersiz HTML olurdu ve sürükleme
-                  dinleyicileriyle çakışırdı. */}
+              {/* Buton içinde buton geçersiz olduğu için form düğmenin yanında. */}
               <form action={toggleTableOrientation} className="absolute -right-2 -top-2">
                 <input type="hidden" name="id" value={table.id} />
                 <input type="hidden" name="isVertical" value={String(table.isVertical)} />

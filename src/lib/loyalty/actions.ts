@@ -16,10 +16,7 @@ function fail(error: unknown): ActionState {
   return { error: "Beklenmeyen bir hata oluştu." };
 }
 
-// 1 puan = 1 TL değerinde kullanılır (bkz. `src/lib/cash/queries.ts`'teki
-// aynı sabit); her 10 TL'lik ödeme 1 puan kazandırır (küsurat aşağı
-// yuvarlanır). Portfolyo ölçeğinde sabit bir oran yeterli — tenant başına
-// ayarlanabilir bir oran Faz 8'in (çok işletme ayarları) işi.
+// 1 puan 1 TL değerindedir; her 10 TL ödeme 1 puan kazandırır (aşağı yuvarlanır).
 const POINTS_PER_LIRA_SPENT = 1 / 10;
 
 const attachSchema = z.object({
@@ -31,15 +28,7 @@ const attachSchema = z.object({
   name: z.string().trim().max(80).optional(),
 });
 
-/**
- * Adisyona bir müşteri bağlar — telefon numarasıyla bulur, yoksa oluşturur.
- *
- * Tekrar çağrılırsa (kasiyer yanlış numara girip düzeltirse) `orders.customer_id`
- * sessizce ÜZERİNE YAZILIR — henüz puan kullanılmadıysa bunun bir sakıncası
- * yok. Puan kullanıldıktan sonra müşteri değiştirmek anlamlı değil zaten
- * (o puanlar ilk müşterinin adına ledger'a yazıldı), bu yüzden ayrıca
- * engellenmiyor — kasiyer akışında bu sıra zaten doğal olarak gelmiyor.
- */
+/** Adisyona telefon numarasıyla müşteri bağlar; yoksa oluşturur. */
 export async function attachCustomerToOrder(
   _previous: ActionState,
   formData: FormData,
@@ -111,13 +100,9 @@ const redeemSchema = z.object({
 });
 
 /**
- * Adisyona bağlı müşterinin puanını harcayıp faturaya indirim olarak yazar.
- *
- * Bakiye kontrolü ile puan düşme kaydı arasında TEORİK bir yarış var (iki eş
- * zamanlı istek aynı bakiyeyi görüp ikisi de yeterli sanabilir) — kasiyer
- * tarafından, düşük hacimli bir işlem olduğu için (bkz. aynı kabul
- * `recordPayment`'taki "iki ödeme isteği yarışıp" notu) burada da kabul
- * edilebilir bir risk.
+ * Müşterinin puanını harcayıp adisyona indirim olarak yazar. Bakiye kontrolü
+ * ile düşüm arasında eşzamanlılık yarışı teorik olarak mümkündür; düşük hacimli
+ * kasiyer işlemi için kabul edilmiş bir risktir.
  */
 export async function redeemPointsForOrder(
   _previous: ActionState,
@@ -181,7 +166,7 @@ export async function redeemPointsForOrder(
   return { ok: true };
 }
 
-/** Ödemenin gerçekleştiği miktara göre puan kazandırır — `recordPayment` bir adisyon tam ödenince çağırır. */
+/** Ödenen tutara göre puan kazandırır; adisyon tam ödenince çağrılır. */
 export async function earnPointsForOrder(params: {
   tenantId: string;
   orderId: string;

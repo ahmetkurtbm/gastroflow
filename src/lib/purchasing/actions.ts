@@ -120,20 +120,9 @@ const importSupplierItemRowSchema = z.object({
 });
 
 /**
- * Tedarikçi fiyat listesini Excel'den toplu içe aktarır (bkz.
- * `/api/export/tedarikci-fiyatlari`).
- *
- * Tedarikçinin GÖNDERDİĞİ dosyayı ayrıştırmıyoruz — her tedarikçi farklı bir
- * formatta gönderiyor, hangi sütunun ne olduğunu genel geçer bilemeyiz. Bunun
- * yerine KENDİ şablonumuzu (Hammadde Adı, Fiyat, SKU, Min. Sipariş) sağlıyoruz;
- * kullanıcı tedarikçinin fişindeki/mailindeki rakamları buraya taşıyor. Aynı
- * desen fiş mutabakatında da var — dış sistemin gerçek formatı bilinmeden de
- * çalışıyor.
- *
- * `(tenant, supplier, hammadde)` eşleşirse fiyat güncellenir, yoksa yeni
- * satır. Hammadde sistemde YOKSA satır atlanır — tedarikçi listesinden
- * otomatik hammadde açmıyoruz, çünkü `base_unit` (kg/g/adet) bu dosyada
- * belirtilmiyor ve onu tahmin etmek yanlış birim dönüşümüne yol açardı.
+ * Tedarikçi fiyat listesini kendi şablonumuzdan içe aktarır. Eşleşen hammadde
+ * için fiyat güncellenir, yoksa satır eklenir; sistemde olmayan hammadde
+ * atlanır çünkü temel birimi bu dosyada yoktur.
  */
 export async function importSupplierPriceList(
   _previous: ImportResult,
@@ -146,10 +135,10 @@ export async function importSupplierPriceList(
       return { error: "Bir dosya seç." };
     }
 
+    const user = await requireAppUser();
     const rows = await parseWorkbookRows(file);
     if (rows.length === 0) return { error: "Dosyada satır bulunamadı." };
 
-    const user = await requireAppUser();
     const supabase = await createClient();
 
     const [{ data: ingredients }, { data: existingItems }] = await Promise.all([
@@ -220,13 +209,8 @@ const createPOSchema = z.object({
 });
 
 /**
- * Yeni satın alma siparişi oluşturur — her zaman `pending_approval` olarak
- * açılır (müdür/patron dahil, bkz. migration 0014: onay her zaman ayrı bir
- * adımdır; ikram/iskonto akışının aksine burada gerçek para taahhüdü var).
- *
- * `redirect()` bilerek try/catch DIŞINDA çağrılıyor — Next.js redirect'i
- * içeride fırlatılan özel bir istisna ile çalışır, bir catch bloğu bunu
- * yutup normal bir hataya çevirirse yönlendirme hiç gerçekleşmez.
+ * Yeni satın alma siparişi oluşturur; her zaman `pending_approval` açılır.
+ * `redirect()` try/catch dışında çağrılır, aksi hâlde catch onu yutar.
  */
 async function buildPurchaseOrder(formData: FormData): Promise<{ error: string } | { poId: string }> {
   try {
@@ -316,7 +300,7 @@ const decideSchema = z.object({
   decision: z.enum(["approved", "rejected"]),
 });
 
-/** Müdür/patron onay bekleyen bir siparişi onaylar/reddeder — geçiş kuralı DB tetikleyicisinde. */
+/** Bekleyen siparişi onaylar/reddeder; geçiş kuralı DB tetikleyicisindedir. */
 export async function decidePurchaseOrder(formData: FormData) {
   const input = decideSchema.parse({
     poId: formData.get("poId"),
@@ -354,11 +338,8 @@ const receiveSchema = z.object({
 });
 
 /**
- * Mal kabul — onaylanmış bir siparişi kapatır ve alınan miktarları stoğa
- * `purchase_in` olarak yazar.
- *
- * Girilmeyen (boş bırakılan) satırlar SİPARİŞ EDİLEN miktarla aynı kabul
- * edilir — depo elemanı yalnızca FARK olan ürünlere dokunsun diye.
+ * Mal kabul: onaylı siparişi kapatır ve alınanı stoğa `purchase_in` yazar.
+ * Boş bırakılan satır sipariş edilen miktar kabul edilir.
  */
 export async function receiveGoods(
   _previous: ActionState,
@@ -434,9 +415,7 @@ export async function receiveGoods(
 
     if (movements.length > 0) {
       const { error: movementError } = await supabase.from("stock_movements").insert(movements);
-      // Sipariş zaten 'received' işaretlendi; stok yazımı başarısız olursa
-      // (ör. bu mal kabul ikinci kez deneniyorsa, unique kısıt engeller)
-      // hatayı yutuyoruz — aynı desen recordPayment/depleteOrderStock'ta da var.
+      // Sipariş zaten 'received'; tekrar denemede unique kısıt stok yazımını engeller.
       if (movementError) {
         console.error(`Mal kabul stok yazımı başarısız (PO ${input.poId}):`, movementError);
       }

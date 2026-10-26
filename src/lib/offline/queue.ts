@@ -5,38 +5,17 @@ import { withStore } from "./db";
 import type { QueuedMutation, SyncOutcome } from "./types";
 
 /**
- * Offline kuyruk — sipariş ekranı VE sayım ekranı burayı paylaşıyor.
- *
- * Kapsamı bilerek dar tutuldu: bu, zaten açık olan bir ekranda (sipariş ya
- * da sayım) bağlantı kesildiğinde mutasyonları kesintisiz sürdürür. YENİ BİR
- * MASA AÇMAK ya da yeni bir sayfaya gitmek bu kapsamda değil — çünkü bu bir
- * Server Component uygulaması ve her navigasyon sunucudan RSC verisi
- * çekmeyi gerektirir (bkz. public/sw.js — soğuk başlangıç offline'ı bu
- * ayrı, daha geniş bir mekanizmayla çözüyor).
- *
- * Mutasyonlar mevcut Server Action'ları (addOrderLine, sendToKitchen,
- * recordCount) ÇAĞIRARAK senkronlanır — Supabase'e doğrudan bağlanıp
- * fiyat/reçete/bakiye mantığını burada tekrarlamıyoruz. Sunucu aksiyonunu
- * doğrudan bir fonksiyon gibi çağırmak da bir ağ isteğidir (Next.js bunu
- * "Server Reference" olarak sunucuya POST eder); dolayısıyla offline'ken bu
- * da tıpkı form gönderimi gibi başarısız olur ve kuyrukta bekler — asıl
- * kazanç, başarısızlığı SESSİZCE KAYBETMEK yerine yakalayıp saklamak.
+ * Sipariş ve sayım ekranlarının paylaştığı offline kuyruk. Açık bir ekranda
+ * bağlantı kesildiğinde mutasyonları IndexedDB'de saklar ve mevcut Server
+ * Action'ları çağırarak senkronlar. Yeni sayfaya gitmek kapsam dışıdır
+ * (soğuk başlangıç için bkz. public/sw.js).
  */
 
 async function put(mutation: QueuedMutation): Promise<void> {
   await withStore("readwrite", (store) => store.put(mutation));
 }
 
-/**
- * Sıralama için tekil, kesin artan bir zaman damgası üretir.
- *
- * Yalnızca `Date.now()` YETMEZ: iki `enqueue*` çağrısı aynı milisaniyede
- * tamamlanabilir (test ortamında neredeyse her zaman olur), bu durumda
- * IndexedDB indeksindeki sıra garanti edilmez ve "mutfağa gönder" isteği,
- * ondan önce eklenmesi gereken ürün satırından önce işlenebilir — bu tam
- * olarak `drainQueue`'nun engellemeye çalıştığı hata. Aynı milisaniye
- * içindeki art arda çağrılar için sayaç, gerçek sırayı korur.
- */
+// Aynı milisaniyedeki çağrılarda bile sırayı korumak için kesin artan zaman damgası.
 let sequence = 0;
 function nextTimestamp(): number {
   return Date.now() * 1000 + (sequence++ % 1000);
@@ -112,24 +91,14 @@ async function removeFromQueue(id: string): Promise<void> {
   await withStore("readwrite", (store) => store.delete(id));
 }
 
-/**
- * Henüz senkronlanmamış bir mutasyonu kuyruktan iptal eder.
- *
- * Yalnızca kuyrukta bekleyen (sunucuya hiç ulaşmamış) bir eklemeyi geri
- * almak için güvenlidir — sunucuya ulaşmış bir satırı silmek `removeOrderLine`
- * server action'ının işi ve bağlantı gerektirir.
- */
+/** Sunucuya hiç ulaşmamış bir mutasyonu kuyruktan siler. */
 export async function cancelQueuedMutation(id: string): Promise<void> {
   await removeFromQueue(id);
 }
 
 /**
- * Kuyruğu sırayla (FIFO) boşaltır.
- *
- * Sıra korunmalı: bir ürünü eklemeden mutfağa gönderemezsin. İlk başarısızlıkta
- * durur — kalan mutasyonlar kuyrukta bekler, bir sonraki tetiklemede baştan
- * (kaldığı yerden) denenir. "Bazılarını atlayıp devam et" YAPILMAZ; bağlantı
- * kesikken atlanan bir ekleme sessizce kaybolmuş olurdu.
+ * Kuyruğu sırayla boşaltır ve ilk hatada durur; ürün eklenmeden mutfağa
+ * gönderilemez, atlanan bir ekleme de kaybolurdu.
  */
 export async function drainQueue(
   onOutcome?: (outcome: SyncOutcome) => void,
@@ -184,8 +153,6 @@ async function syncOne(mutation: QueuedMutation): Promise<SyncOutcome> {
       return { status: "synced", mutation };
     }
 
-    // send_to_kitchen: sendToKitchen(formData) hata durumunda fırlatır,
-    // başarı durumunda bir şey döndürmez.
     const formData = new FormData();
     formData.set("orderId", mutation.orderId);
     await sendToKitchen(formData);

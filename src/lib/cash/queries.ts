@@ -44,10 +44,8 @@ export type CashSessionView = {
 };
 
 /**
- * `/cash` ekranının üst kısmı: en son açılan kasa oturumu — açıksa canlı
- * özet, kapalıysa son gün sonu raporu olarak gösterilir. Şube bazlı DEĞİL,
- * tenant genelinde en yeni oturum — bu portfolyo ölçeğinde (tek şube)
- * yeterli; çok şubeli senaryoda şube filtresi eklenir (bkz. plan §0.1 Faz 9).
+ * `/cash` ekranının üstü: tenant genelindeki en son kasa oturumu; açıksa canlı
+ * özet, kapalıysa son gün sonu raporu.
  */
 export async function loadLatestCashSession(): Promise<CashSessionView | null> {
   const supabase = await createClient();
@@ -156,17 +154,15 @@ export type OrderForPayment = {
     unitPrice: number;
     modifiers: { name: string; priceDelta: number }[];
     discount: LineDiscountView | null;
-    /** Modifier + onaylanmış indirim dahil satır tutarı — kasadaki listelerde
-     * tekrar tekrar aynı hesabı yapmamak için burada hazır tutuluyor. */
+    /** Modifier ve onaylanmış indirim dahil satır tutarı. */
     total: number;
   }[];
   payments: PaymentView[];
-  /** Satır toplamı, kupon/puan indirimi UYGULANMADAN ÖNCE — `applyCouponToOrder`
-   * indirimi bunun üzerinden hesaplıyor. */
+  /** Kupon ve puan indirimi öncesi toplam; kupon indirimi bunun üzerinden hesaplanır. */
   subtotal: Money;
   coupon: { code: string; discount: Money } | null;
   pointsRedeemed: { points: number; discount: Money } | null;
-  /** Satır toplamı EKSİ kupon EKSİ puan indirimi — kasiyerin tahsil ettiği/edeceği tutar budur. */
+  /** Kupon ve puan indirimi sonrası tahsil edilecek tutar. */
   total: Money;
   paid: Money;
   remaining: Money;
@@ -225,9 +221,7 @@ export async function loadOrderForPayment(orderId: string): Promise<OrderForPaym
   const pointsRedeemed = pointsRedemption
     ? {
         points: -pointsRedemption.points_delta,
-        // 1 puan = 1 TL — bkz. `POINTS_PER_LIRA_SPENT` (src/lib/loyalty/actions.ts)
-        // yanındaki aynı sabit için gerekçe. "use server" dosyası yalnızca
-        // async fonksiyon export edebildiği için sabiti buraya taşıyamadık.
+        // 1 puan = 1 TL (loyalty/actions.ts ile aynı oran; "use server" dosyası sabit export edemez).
         discount: money(-pointsRedemption.points_delta),
       }
     : null;

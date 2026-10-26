@@ -2,15 +2,7 @@
 
 import { useGlobalSyncStatus } from "@/lib/offline/use-global-sync-status";
 
-/**
- * Kabuktaki her ekranda görünen bağlantı/kuyruk rozeti.
- *
- * Temiz kalsın diye çevrimiçi ve kuyruk boşken HİÇBİR ŞEY göstermiyor —
- * yalnızca dikkat gerektiren iki durumda beliriyor: çevrimdışı, ya da
- * bekleyen bir mutasyon var. Bu, ekranı terk edip başka bir sayfaya geçmiş
- * bir garsonun/depo görevlisinin bile "senkron oldu mu?" sorusuna cevap
- * bulmasını sağlıyor.
- */
+/** Yalnızca çevrimdışıyken ya da bekleyen mutasyon varken görünen bağlantı rozeti. */
 export function GlobalSyncIndicator() {
   const { isOnline, pendingCount } = useGlobalSyncStatus();
 

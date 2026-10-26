@@ -36,7 +36,6 @@ export async function addArea(_previous: ActionState, formData: FormData): Promi
     });
 
     if (error) {
-      // 23505 = unique_violation → (branch_id, name) çifti zaten var.
       if (error.code === "23505") return { error: "Bu isimde bir alan zaten var." };
       return { error: error.message };
     }
@@ -48,12 +47,7 @@ export async function addArea(_previous: ActionState, formData: FormData): Promi
   return { ok: true };
 }
 
-/**
- * Bir alanı siler. `tables.area_id` FK'si `on delete set null` — alandaki
- * masalar silinmez, yalnızca alansız kalır. Salon ekranı bunları "Diğer"
- * grubunda gösterir (bkz. `src/lib/orders/queries.ts` `loadFloorPlan`), yani
- * bir masa asla sessizce kaybolmaz; yalnızca yeniden gruplanması gerekir.
- */
+/** Alanı siler; masaları alansız kalır ve "Diğer" grubunda görünür. */
 export async function deleteArea(formData: FormData) {
   const id = z.uuid().parse(formData.get("id"));
   const supabase = await createClient();
@@ -109,10 +103,7 @@ export async function deleteTable(formData: FormData) {
   const id = z.uuid().parse(formData.get("id"));
   const supabase = await createClient();
 
-  // Açık adisyonu olan bir masa silinemez — `orders.table_id` `on delete set
-  // null`, yani silme "başarılı" olur ama adisyon sahipsiz kalırdı. RLS bunu
-  // engellemiyor (foreign key kısıtı yok, `set null` izin veriyor), bu yüzden
-  // burada açıkça kontrol ediyoruz.
+  // `orders.table_id` set null olduğu için açık adisyonlu masa silinirse adisyon sahipsiz kalırdı.
   const { data: openOrder } = await supabase
     .from("orders")
     .select("id")
@@ -131,7 +122,7 @@ export async function deleteTable(formData: FormData) {
   revalidatePath("/pos");
 }
 
-/** Masayı yatay/dikey arasında çevirir — uzun masalar duvara dik durabiliyor. */
+/** Masayı yatay/dikey çevirir. */
 export async function toggleTableOrientation(formData: FormData) {
   const id = z.uuid().parse(formData.get("id"));
   const isVertical = formData.get("isVertical") === "true";
@@ -153,15 +144,7 @@ const positionSchema = z.object({
   y: z.number().min(0).max(100),
 });
 
-/**
- * Sürükle-bırak editöründen (bkz. floor-canvas.tsx) gelen konum kaydı.
- *
- * Form action değil — sürükleme bittiğinde doğrudan bir fonksiyon çağrısı
- * gibi çağrılıyor (Next.js Server Action'ları client bileşenlere prop olarak
- * geçilip form dışında da çağrılabilir). Sık sürüklemede her pikselde değil,
- * yalnızca bırakıldığında (pointerup) bir kez çağrılıyor — gereksiz istek
- * yığmasın diye.
- */
+/** Sürükle-bırak editöründen bırakma anında gelen konum kaydı. */
 export async function updateTablePosition(id: string, x: number, y: number): Promise<void> {
   const input = positionSchema.parse({ id, x, y });
   const supabase = await createClient();
@@ -176,15 +159,7 @@ export async function updateTablePosition(id: string, x: number, y: number): Pro
   revalidatePath("/pos");
 }
 
-/**
- * Bir masanın QR sipariş bağlantısını (`qr_token`) yeniler.
- *
- * Eski token o an geçersiz kalır — masaya yapıştırılmış QR kod fotoğraflanıp
- * paylaşılmışsa ya da tükenmez kalemle çizilmiş kod fiziksel olarak yıpranıp
- * yenisi basılacaksa buradan tek tuşla eski bağlantı kapatılır. `tables_update`
- * politikası zaten yalnızca `is_manager()` ile yazmaya izin veriyor (bkz.
- * migration 0009 `rls_policy_hygiene`) — burada ayrıca rol kontrolü YOK.
- */
+/** Masanın QR token'ını yeniler; eski bağlantı hemen geçersiz olur. Yetki RLS'te. */
 export async function regenerateTableQrToken(formData: FormData) {
   const id = z.uuid().parse(formData.get("id"));
   const supabase = await createClient();

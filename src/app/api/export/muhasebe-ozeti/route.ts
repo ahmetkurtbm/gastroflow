@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requireAppUser } from "@/lib/auth/current-user";
+import { requirePathAccess } from "@/lib/auth/current-user";
 import { buildWorkbookBuffer } from "@/lib/excel/workbook";
 import { createClient } from "@/lib/supabase/server";
 
@@ -22,17 +22,13 @@ function isoDaysAgo(days: number): string {
 }
 
 /**
- * Muhasebeciye günlük/dönemlik ciro dökümü — ödeme yöntemi bazında, gün gün.
- *
- * BİLEREK "Logo/Mikro/Luca uyumlu" diye iddia ETMİYORUZ: her muhasebe
- * yazılımının gerçek içe aktarım sütun formatı farklı ve doğrulayabildiğimiz
- * bir örnek yok — yanlış bir format iddiasıyla göndermek, hiç göndermemekten
- * kötü. Bu genel, düz bir döküm; muhasebeci kendi sistemine göre uyarlıyor.
- * KDV kırılımı da YOK aynı sebeple — tahmini bir KDV rakamı üretmek, gerçek
- * muhasebe hatasına yol açabilecek bir riski göze almaktan daha kötü.
+ * Muhasebe için ödeme yöntemi bazında günlük ciro dökümü. Belirli bir muhasebe
+ * yazılımının biçimi iddia edilmez; düz bir dökümdür.
  */
 export async function GET(request: Request) {
-  await requireAppUser();
+  if (!(await requirePathAccess("/reports"))) {
+    return new NextResponse(null, { status: 403 });
+  }
   const url = new URL(request.url);
   const fromDate = url.searchParams.get("from") ?? isoDaysAgo(30);
   const toDate = url.searchParams.get("to") ?? isoDaysAgo(0);

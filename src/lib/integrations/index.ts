@@ -4,12 +4,7 @@ import { MockDeliveryChannelAdapter, type DeliveryChannelAdapter } from "./deliv
 import { MockEInvoiceAdapter, type EInvoiceAdapter } from "./e-invoice";
 import { MockFiscalDeviceAdapter, type FiscalDeviceAdapter } from "./fiscal-device";
 
-/**
- * Aktif adaptörler — bugün üçü de mock. Gerçek bir donanım/servis
- * bağlanınca değişecek TEK yer burası; çağıran kod yalnızca arayüzü
- * bilir, hangi implementasyonun çalıştığını bilmez (bkz. PLAN.md §0
- * "adapter arayüzü + mock" ilkesi).
- */
+// Aktif adaptörler; üçü de mock. Gerçek implementasyon geldiğinde değişen tek yer.
 export const fiscalDeviceAdapter: FiscalDeviceAdapter = new MockFiscalDeviceAdapter();
 export const eInvoiceAdapter: EInvoiceAdapter = new MockEInvoiceAdapter();
 export const deliveryChannelAdapters: DeliveryChannelAdapter[] = [

@@ -9,13 +9,7 @@ import { OrderScreen } from "../../masa/[tableId]/order-screen";
 
 export const metadata: Metadata = { title: "Sipariş" };
 
-/**
- * Masasız sipariş ekranı (Gel Al / Self Servis) — `/pos/masa/[tableId]`'in
- * masa yerine doğrudan adisyon id'siyle çalışan karşılığı. `OrderScreen`
- * bileşeni aynısı: `OrderView.tableId`/`tableName` zaten null-safe (bkz.
- * cart.tsx'teki "Masa X" / "Adisyon" ayrımı), ekranda hiçbir özel dal
- * gerekmiyor.
- */
+/** Masasız sipariş ekranı (Gel Al / Self Servis); adisyon id'siyle aynı `OrderScreen`. */
 export default async function ChannelOrderPage({
   params,
 }: {
@@ -27,9 +21,7 @@ export default async function ChannelOrderPage({
   const order = await loadOpenOrderById(orderId);
 
   if (!order) {
-    // Masalı adisyonun aksine burada "aç" butonu yok — masasız bir sipariş
-    // yalnızca openChannelOrder ile açılır, doğrudan bağlantıyla "yeniden
-    // açmanın" bir anlamı yok (kapandıysa kapanmıştır).
+    // Masasız sipariş yalnızca openChannelOrder ile açılır; kapandıysa yeniden açılmaz.
     return (
       <div className="mx-auto max-w-sm py-16 text-center">
         <p className="mb-4 text-sm text-ink-muted">

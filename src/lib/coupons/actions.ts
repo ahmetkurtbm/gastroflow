@@ -105,17 +105,8 @@ const applyCouponSchema = z.object({
 });
 
 /**
- * Ödeme ekranında girilen kodu adisyona uygular.
- *
- * İndirim tutarı BURADA, uygulama anındaki toplam üzerinden hesaplanıp
- * `coupon_redemptions.discount_amount`'a DONDURULUYOR — kuponun değeri daha
- * sonra değişse (ör. müdür yüzdeyi düzenlese) bile geçmiş bir ödemenin
- * tutarı geriye dönük değişmez. Aynı `unit_price` dondurma prensibi
- * (`addOrderLine`, migration 0012'deki kombo notu).
- *
- * `unique (order_id)` kısıtı (migration 0015) bir adisyona en fazla bir
- * kupon uygulanmasını veritabanı seviyesinde garanti ediyor — burada ayrıca
- * "zaten var mı" kontrolü YOK, 23505'i anlaşılır bir hataya çeviriyoruz.
+ * Ödeme ekranında kupon uygular. İndirim tutarı uygulama anında hesaplanıp
+ * dondurulur. Adisyon başına tek kupon kuralı veritabanı kısıtındadır.
  */
 export async function applyCouponToOrder(
   _previous: ActionState,
@@ -168,8 +159,7 @@ export async function applyCouponToOrder(
       coupon.kind === "percent"
         ? multiply(paymentInfo.total, Number(coupon.value) / 100)
         : money(Number(coupon.value));
-    // Kupon, faturanın toplamından fazla indirim yapamaz — "borç" negatif
-    // bakiyeye dönüşmesin.
+    // Kupon toplamdan fazla indirim yapamaz.
     const discount = compare(rawDiscount, paymentInfo.total) > 0 ? paymentInfo.total : rawDiscount;
 
     const { error } = await supabase.from("coupon_redemptions").insert({
@@ -192,7 +182,7 @@ export async function applyCouponToOrder(
   return { ok: true };
 }
 
-/** Ödeme tamamlanmadan önce yanlış girilen kupon kaldırılabilir. */
+/** Ödeme tamamlanmadan yanlış girilen kuponu kaldırır. */
 export async function removeCouponFromOrder(formData: FormData) {
   const orderId = z.uuid().parse(formData.get("orderId"));
   const supabase = await createClient();

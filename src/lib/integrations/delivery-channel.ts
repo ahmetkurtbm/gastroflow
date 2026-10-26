@@ -1,14 +1,7 @@
 /**
- * Paket sipariş platformu (Yemeksepeti/Getir/Trendyol Go vb.) entegrasyon arayüzü.
- *
- * Her platformun kendi webhook şeması ve kimlik doğrulaması var — kapsam
- * dışı. Amaç: platformdan gelen bir siparişi `orders` tablosundaki
- * `channel='delivery'` satırına çevirmek (§5 veri modelinde zaten var) ve
- * durum güncellemelerini geri platforma iletmek. Gerçek bir webhook
- * alıcısı (Route Handler) bağlanınca `parseIncomingOrder` girdi şemasını
- * gerçek payload'a göre dolduracak; adisyon oluşturma mantığı
- * (`src/lib/orders/actions.ts`) DEĞİŞMEYECEK — bu adaptör yalnızca "dış
- * formatı iç formata çevirme" katmanı.
+ * Paket sipariş platformu (Yemeksepeti, Getir, Trendyol Go) arayüzü. Platform
+ * siparişini `channel='delivery'` adisyonuna çevirir ve durumu geri iletir.
+ * Gerçek webhook entegrasyonu yok; şu an mock çalışır.
  */
 
 export type IncomingChannelOrder = {

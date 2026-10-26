@@ -4,11 +4,7 @@ function toNumber(value: string | number | null | undefined): number {
   return typeof value === "number" ? value : Number(value ?? 0);
 }
 
-/**
- * Türkiye DST uygulamıyor (2016'dan beri sabit UTC+3) — bu yüzden "bugün
- * 00:00 İstanbul" hesabı sabit +03:00 ofsetiyle güvenle yapılabilir,
- * saat dilimi kütüphanesi gerekmez.
- */
+// Türkiye 2016'dan beri sabit UTC+3; "bugün 00:00" sabit ofsetle hesaplanır.
 function istanbulStartOfDayISO(): string {
   const ymd = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Istanbul",
@@ -25,7 +21,7 @@ export type RevenueSummary = {
   paymentCount: number;
 };
 
-/** Bugünün cirosu (İstanbul günü, 00:00'dan şu ana) — tüm şubeler, tüm ödeme yöntemleri. */
+/** Bugünün cirosu (İstanbul günü), tüm şubeler. */
 export async function loadTodayRevenue(): Promise<RevenueSummary> {
   const supabase = await createClient();
   const { data } = await supabase

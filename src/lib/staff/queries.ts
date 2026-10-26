@@ -14,17 +14,13 @@ export type StaffMember = {
 };
 
 /**
- * Personel listesi.
- *
- * `memberships`/`profiles` RLS'ten (owner kendi tenant'ını görür) okunuyor —
- * bu kısım normal, oturumlu istemciyle. E-posta ise `auth.users`'ta yaşıyor;
- * PostgREST bu şemaya erişemez, yalnızca service_role admin API'siyle
- * okunabilir. Kiracı sızıntısı riski yok: hangi `user_id`'lerin sorgulanacağı
- * zaten RLS'ten geçmiş `memberships` sonucundan geliyor, kullanıcıdan gelen
- * bir girdi değil.
+ * Personel listesi (yalnızca patron). Üyelikler RLS'ten okunur; e-postalar
+ * auth.users'ta olduğu için service role ile, yalnızca RLS'ten dönen
+ * kullanıcılar için alınır.
  */
 export async function loadStaff(): Promise<StaffMember[]> {
-  await requireAppUser();
+  const user = await requireAppUser();
+  if (user.role !== "owner") return [];
   const supabase = await createClient();
 
   const { data: memberships } = await supabase

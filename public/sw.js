@@ -1,18 +1,6 @@
-// =============================================================================
-// GastroFlow — app-shell service worker (Faz 7, "soğuk başlangıç" offline)
-// =============================================================================
-// Kapsam (bkz. AGENTS.md "Offline kuyruk — kapsam sınırı"): src/lib/offline/
-// yalnızca zaten açık bir sipariş ekranındaki MUTASYONLARI (ürün ekleme,
-// mutfağa gönderme) kuyruğa alıyordu — sayfanın kendisi hâlâ ağdan
-// gelmek zorundaydı. Bu service worker o boşluğu kapatıyor: bir sayfa bir
-// kez online ziyaret edildiyse, sonraki soğuk başlangıçta (sekme kapanıp
-// açılsa/yenilense bile) önbellekten render edilebilir.
-//
-// Ne YAPMAZ (bilinçli sınır): hiç ziyaret edilmemiş yeni bir sayfaya offline
-// gitmek çalışmaz — bu, App Router'ın her navigasyonda sunucudan RSC verisi
-// çekmesinin doğal sonucu. Server Action'lar (POST) hiç önbelleğe alınmaz;
-// mutasyonların offline dayanıklılığı zaten src/lib/offline/queue.ts'nin işi.
-// =============================================================================
+// App-shell service worker. Online ziyaret edilmiş sayfalar soğuk başlangıçta
+// önbellekten açılabilir; hiç ziyaret edilmemiş sayfa offline açılamaz.
+// Server Action'lar (POST) önbelleğe alınmaz; mutasyonları src/lib/offline yönetir.
 
 const CACHE_VERSION = "gastroflow-shell-v1";
 
@@ -42,8 +30,7 @@ function isSameOrigin(url) {
   return new URL(url).origin === self.location.origin;
 }
 
-// Next'in build hash'li varlıkları (_next/static/...) içerik-adresli ve
-// değişmez — bir kere önbelleğe alınınca sonsuza dek güvenle kullanılabilir.
+// _next/static varlıkları içerik hash'li ve değişmez.
 function isImmutableAsset(url) {
   return new URL(url).pathname.startsWith("/_next/static/");
 }
@@ -51,22 +38,11 @@ function isImmutableAsset(url) {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
 
-  // Yalnızca GET okumaları önbelleklenir. Server Action'lar POST ile gider;
-  // bunlara hiç dokunmuyoruz ki src/lib/offline/queue.ts'nin idempotency
-  // varsayımlarıyla çakışmasın. Aynı sebeple çapraz-origin (Supabase) istekleri
-  // de bu worker'ın dışında bırakılıyor — realtime/auth akışını bozmamak için.
+  // Yalnızca aynı origin'deki GET istekleri; Server Action ve Supabase istekleri dışarıda.
   if (request.method !== "GET" || !isSameOrigin(request.url)) return;
 
-  // Next.js'in bir Server Action'dan sonra kendi kendine attığı arka plan
-  // RSC yenileme isteği (`RSC`/`Next-Router-State-Tree` başlıklı) — bu SW
-  // asla dokunmamalı. Sebep: React/Next bu isteği bir sonraki render
-  // supersede ederse KENDİSİ iptal eder (AbortError); bu SW o iptali de
-  // "ağ hatası" sayıp aşağıdaki catch'te `Response.error()` üretiyordu, bu
-  // da tarayıcının native "Bu sayfa yüklenemedi" ekranını tetikliyordu —
-  // masa eklerken/vardiya kaydederken görülen hata tam olarak buydu.
-  // Bu istekler zaten "soğuk başlangıç" (offline sayfa açma) senaryosunun
-  // parçası değil — yalnızca uygulama zaten çalışırkenki canlı yenilemeler,
-  // bu yüzden es geçmek offline hedefinden hiçbir şey kaybettirmiyor.
+  // Next'in Server Action sonrası RSC yenileme isteğine dokunulmaz: iptal
+  // edildiğinde SW bunu ağ hatası sayıp "sayfa yüklenemedi" ekranı açıyordu.
   if (request.headers.get("RSC") === "1" || request.headers.has("Next-Router-State-Tree")) {
     return;
   }
@@ -84,10 +60,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Sayfa navigasyonları ve App Router'ın RSC veri istekleri (aynı URL,
-  // farklı Accept/RSC başlığıyla): ağ öncelikli, başarılı yanıt her zaman
-  // önbelleğin üstüne yazılır — bu yüzden "bayat veri" riski yalnızca
-  // GERÇEKTEN çevrimdışıyken ortaya çıkar, online'ken her zaman taze.
+  // Sayfa ve RSC istekleri ağ öncelikli; başarılı yanıt önbelleği günceller.
   event.respondWith(
     fetch(request)
       .then((response) => {

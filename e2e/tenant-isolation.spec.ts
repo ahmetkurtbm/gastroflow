@@ -13,10 +13,7 @@ async function readState() {
   return JSON.parse(raw) as { orderFlow: TestTenant; isolationOther: TestTenant };
 }
 
-// docs/HARITA.md §9, S-izolasyon senaryosuna karşılık gelir: bu, RLS'in
-// pgTAP'ta zaten kanıtlanmış davranışının gerçek tarayıcıda ve gerçek HTTP
-// isteğiyle de geçerli olduğunu doğrular — sunucu bileşeni/action katmanının
-// yanlışlıkla tenant_id filtresi atlamadığından emin olmak için.
+// pgTAP'ta kanıtlanan RLS izolasyonunun gerçek tarayıcı ve HTTP isteğiyle de geçerli olduğunu doğrular.
 test("kiracı izolasyonu: bir işletmenin kullanıcısı diğerinin masasını salon ekranında göremez", async ({
   page,
 }) => {

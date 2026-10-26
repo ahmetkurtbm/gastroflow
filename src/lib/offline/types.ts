@@ -1,12 +1,6 @@
 /**
- * Kuyruğa alınan mutasyonlar (sipariş VE sayım).
- *
- * `id` aynı zamanda sunucudaki idempotency anahtarıdır (`client_key` ya da
- * `batchId`). Aynı mutasyon iki kez senkronlansa bile (ağ kesilip yeniden
- * denense, ya da sekme kapanıp açılsa) veritabanındaki unique kısıt ikinci
- * denemeyi ya reddeder ya da (bizim ele aldığımız şekilde) "zaten yapılmış"
- * sayar. Sipariş satırları için bkz. supabase/migrations/0008
- * (`client_key`); sayım için bkz. 0010 (`reference_type`/`reference_id`).
+ * Kuyruğa alınan sipariş ve sayım mutasyonları. `id` sunucudaki idempotency
+ * anahtarıdır (`client_key` ya da `batchId`); tekrar gönderim unique kısıta takılır.
  */
 export type QueuedMutation =
   | {
@@ -18,8 +12,7 @@ export type QueuedMutation =
       readonly menuItemId: string;
       readonly menuItemName: string;
       readonly quantity: number;
-      /** Ürün fiyatı + seçilen modifier'ların TOPLAM farkı — yalnızca
-       * OPTİMİSTİK gösterim için. Sunucu ad/fiyatı kendi okuyup dondurur. */
+      /** Ürün fiyatı ve modifier farkları; yalnızca iyimser gösterim için. */
       readonly unitPrice: number;
       readonly modifierIds: readonly string[];
       readonly modifierSummary: string | null;
@@ -37,8 +30,7 @@ export type QueuedMutation =
       readonly kind: "record_count_page";
       readonly createdAt: number;
       readonly locationId: string;
-      /** Sayfadaki her satır: hammadde id'si + sayılan miktar (string —
-       * input değeri aynen taşınır, sunucu ayrıştırır). */
+      /** Hammadde id'si ve sayılan miktar (girdi metni, sunucu ayrıştırır). */
       readonly entries: readonly { itemId: string; quantity: string }[];
     };
 

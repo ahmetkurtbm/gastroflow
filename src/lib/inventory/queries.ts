@@ -15,15 +15,7 @@ export type StockRow = {
   isLow: boolean;
 };
 
-/**
- * Her (hammadde × lokasyon) çifti için anlık bakiye.
- *
- * Bakiye `v_stock_balance`'tan geliyor — o da `stock_movements` defterinin
- * `SUM(quantity)`'si. Tabloya değil görünüme bakmamızın sebebi: anlık stok
- * hiçbir yerde AYRI bir sayı olarak SAKLANMIYOR, her seferinde defterden
- * türetiliyor. Bu, "bakiye kolonu ile defter birbirinden sapar" hatasını
- * yapısal olarak imkânsız kılıyor.
- */
+/** Her (hammadde × lokasyon) için anlık bakiye; `stock_movements` defterinden türetilir. */
 export async function loadStockOverview(): Promise<StockRow[]> {
   const supabase = await createClient();
 
@@ -52,8 +44,6 @@ export async function loadStockOverview(): Promise<StockRow[]> {
   for (const item of itemsResult.data ?? []) {
     for (const [locationId, locationName] of locationById) {
       const key = `${locationId}:${item.id}`;
-      // Hiç hareketi olmayan bir (ürün, lokasyon) çifti için satır üretmiyoruz —
-      // aksi hâlde her yeni hammadde her lokasyonda "0" satırıyla listeyi şişirirdi.
       if (!balanceByKey.has(key) && !reorderByKey.has(key)) continue;
 
       const balance = balanceByKey.get(key) ?? 0;
@@ -105,7 +95,6 @@ export type StockPickLists = {
   locations: { id: string; name: string }[];
 };
 
-/** Zayiat/transfer/sayım formlarının dropdown'ları için ortak liste. */
 export async function loadStockPickLists(): Promise<StockPickLists> {
   const supabase = await createClient();
   const [itemsResult, locationsResult] = await Promise.all([
@@ -164,11 +153,7 @@ export type TransferRow = {
   createdAt: string;
 };
 
-/**
- * `stock_movements`'ta bir transferin iki bacağı (`transfer_out` +
- * `transfer_in`) aynı `reference_id`'yi paylaşır — burada eşleştirip tek bir
- * "Depo A → Depo B" satırına dönüştürüyoruz (bkz. `recordTransfer`).
- */
+/** Transferin aynı `reference_id`'yi paylaşan iki bacağını tek satırda birleştirir. */
 export async function loadRecentTransfers(limit = 30): Promise<TransferRow[]> {
   const supabase = await createClient();
   const { data } = await supabase
@@ -192,9 +177,7 @@ export async function loadRecentTransfers(limit = 30): Promise<TransferRow[]> {
 
   const rows: TransferRow[] = [];
   for (const [refId, entry] of byRef) {
-    // Çift her iki bacakla da tam gelmeliydi; eksikse (ör. limit sınırı iki
-    // bacağı ayırdıysa) satırı atla — yanlış/eksik bilgi göstermektense hiç
-    // göstermemek daha güvenli.
+    // İki bacaktan biri eksikse (ör. limit ayırdıysa) yanlış satır göstermek yerine atla.
     if (!entry.out || !entry.in) continue;
     rows.push({
       id: refId,
@@ -259,14 +242,8 @@ export type VarianceRow = {
 };
 
 /**
- * Teorik vs fiili varyans raporu.
- *
- * "Teorik" zaten `sale_out` hareketlerinde yaşıyor — adisyon kapanınca
- * reçeteye göre otomatik yazılıyor (bkz. `depleteOrderStock`). "Fiili sapma"
- * da ayrıca hesaplanan bir şey değil: `count_adjustment` TAM OLARAK budur —
- * fiziksel sayımın, satış+zayiat+transferden sonra ledger'ın öngördüğü
- * bakiyeyle farkı. İki ayrı hesap yapıp birbirini tutmasını ummak yerine,
- * ledger'ın kendi kaydını doğrudan gösteriyoruz.
+ * Teorik ve fiili varyans. Teorik tüketim `sale_out` hareketleri, açıklanamayan
+ * fark ise sayımın yazdığı `count_adjustment` hareketleridir.
  */
 export async function loadVarianceReport(days = 30): Promise<VarianceRow[]> {
   const supabase = await createClient();
@@ -307,8 +284,7 @@ export async function loadVarianceReport(days = 30): Promise<VarianceRow[]> {
     });
   }
 
-  // Yüzdesi olmayanlar (hiç satışı yok ama sayım farkı var) sona; kalanlar
-  // mutlak yüzdeye göre — en sorunlu ürün en üstte olsun.
+  // Yüzdesi olmayanlar sona, diğerleri mutlak yüzdeye göre.
   return rows.sort((a, b) => {
     if (a.variancePercent === null) return 1;
     if (b.variancePercent === null) return -1;

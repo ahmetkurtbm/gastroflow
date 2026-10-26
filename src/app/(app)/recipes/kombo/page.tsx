@@ -10,12 +10,8 @@ import { ComboForm } from "./combo-form";
 export const metadata: Metadata = { title: "Kombolar" };
 
 /**
- * Kombo/menü kampanyası yönetimi — "Büyük Menü = burger+patates+içecek tek
- * fiyat" gibi paket ürünler. Bir kombo AYRI bir satılabilir varlık değil,
- * yalnızca bir fiyatlandırma kısayolu: POS'ta seçilince mevcut menü
- * ürünlerine (kombonun fiyatına orantılı dağıtılmış fiyatlarla) dönüşür —
- * bkz. `addComboToOrder` (src/lib/orders/actions.ts). Bu sayede stok
- * düşümü, KDS, reçete maliyeti hiçbir şey bilmeden çalışmaya devam eder.
+ * Kombo yönetimi. Kombo ayrı bir satılabilir ürün değil, fiyatlandırma kısayoludur;
+ * POS'ta seçilince bileşen ürünlere orantılı fiyatlarla ayrılır.
  */
 export default async function KomboPage() {
   const [combos, menuItems] = await Promise.all([loadCombosAdmin(), loadMenuItemOptions()]);

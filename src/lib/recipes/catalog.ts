@@ -5,22 +5,16 @@ import {
   type Recipe,
   type RecipeLine,
 } from "@/core/recipe";
+import { currentPrices } from "@/core/pricing";
 import type { UnitConversion } from "@/core/units";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * Veritabanı ile saf maliyet motoru (`src/core`) arasındaki köprü.
- *
- * Motor veritabanı bilmiyor — bilerek. Bu dosya tek yönlü bir çevirmen:
- * satırları okur, `Catalog` tipine dönüştürür. Motorun testleri bu katmana
- * hiç uğramadan çalışabildiği için maliyet matematiği veritabanı olmadan
- * doğrulanabiliyor.
- *
- * Sayısal alanlar hakkında: PostgREST `numeric` kolonlarını STRING olarak
- * taşıyor (hassasiyet kaybolmasın diye). Number()'a çevirmeyi unutmak,
- * "600" + 380 = "600380" gibi sessiz saçmalıklara yol açar.
+ * Veritabanı satırlarını saf maliyet motorunun (`src/core`) `Catalog` tipine
+ * çevirir. PostgREST `numeric` değerlerini string döndürdüğü için hepsi
+ * sayıya çevrilir.
  */
 
 export type RecipeSummary = {
@@ -36,7 +30,6 @@ export type RecipeSummary = {
   sellingPrice: number | null;
   /** Satılan bir ürün mü, yoksa yarı mamul mü? */
   isSubRecipe: boolean;
-  /** Menü ürününün fotoğrafı (varsa) — bkz. migration 0014. */
   imageUrl: string | null;
 };
 
@@ -49,28 +42,15 @@ function toNumber(value: string | number | null | undefined): number {
   return typeof value === "number" ? value : Number(value ?? 0);
 }
 
-/**
- * İşletmenin tüm aktif reçetelerini ve hammaddelerini tek seferde okur.
- *
- * Reçete ağacı özyinelemeli olduğu için parça parça okumak N+1 sorgu
- * doğururdu; motorun zaten tamamına ihtiyacı var.
- */
+/** İşletmenin aktif reçetelerini ve hammaddelerini tek seferde okur; ağaç özyinelemeli. */
 export async function loadCatalog(
   options: {
-    /**
-     * Bu reçete için (varsa) YAYINLANMAMIŞ taslak versiyonu kullan.
-     *
-     * Düzenleme ekranında maliyeti canlı göstermek için: malzeme eklerken
-     * maliyetin nereye gittiğini görmek, yayınladıktan sonra öğrenmekten
-     * çok daha faydalı.
-     */
+    /** Bu reçetenin yayınlanmamış taslağını kullan (düzenlerken canlı maliyet için). */
     preferDraftFor?: string;
     /**
-     * Alternatif Supabase istemcisi. Varsayılan, çağıran kullanıcının oturumunu
-     * (ve RLS'ini) kullanır. `createServiceRoleClient()` geçirmek gerekiyorsa
-     * sebebi şu olmalı: çağıran, `can_read_costs()` yetkisi olmayan bir rol
-     * (ör. kasiyer) adına ÇALIŞAN bir sistem sürecidir — bkz.
-     * src/lib/inventory/depletion.ts.
+     * Varsayılan istemci çağıranın RLS'ine tabidir. Service role yalnızca
+     * maliyet okuma yetkisi olmayan bir rol adına çalışan sistem süreci
+     * içindir (bkz. inventory/depletion.ts).
      */
     client?: SupabaseClient<Database>;
   } = {},
@@ -95,8 +75,7 @@ export async function loadCatalog(
         .in("status", options.preferDraftFor ? ["active", "draft"] : ["active"]),
       supabase
         .from("menu_prices")
-        .select("menu_item_id, price, valid_from")
-        .order("valid_from", { ascending: false }),
+        .select("menu_item_id, price, branch_id, valid_from"),
       supabase.from("menu_items").select("id, image_url"),
     ]);
 
@@ -119,14 +98,10 @@ export async function loadCatalog(
     conversions: conversionsByItem.get(row.id) ?? [],
   }));
 
-  // Bir menü ürününün güncel fiyatı = valid_from'u en yeni olan kayıt.
-  // Sorgu zaten tarihe göre azalan sıralı, ilk gördüğümüz doğru olan.
-  const priceByMenuItem = new Map<string, number>();
-  for (const row of pricesResult.data ?? []) {
-    if (!priceByMenuItem.has(row.menu_item_id)) {
-      priceByMenuItem.set(row.menu_item_id, toNumber(row.price));
-    }
-  }
+  // Maliyet ekranı şubeden bağımsızdır; genel menü fiyatı kullanılır.
+  const priceByMenuItem = new Map(
+    [...currentPrices(pricesResult.data ?? [], null)].map(([id, p]) => [id, p.price] as const),
+  );
 
   const recipeMeta = new Map(
     (recipesResult.data ?? []).map((row) => [row.id, row] as const),
@@ -138,15 +113,12 @@ export async function loadCatalog(
   const recipes: Recipe[] = [];
   const summaries: RecipeSummary[] = [];
 
-  // Reçete başına tek versiyon seç. Hedef reçetede taslak varsa onu, aksi
-  // hâlde yayınlanmış olanı kullan. Aynı reçetenin iki versiyonunu birden
-  // motora vermek "yinelenen kimlik" hatası verirdi.
+  // Reçete başına tek versiyon: düzenlenende taslak, diğerlerinde yayınlanmış.
   type VersionRow = NonNullable<typeof versionsResult.data>[number];
   const chosen = new Map<string, VersionRow>();
   for (const version of versionsResult.data ?? []) {
-    // Düzenlenen reçetede taslağı, diğerlerinde yayınlanmış olanı isteriz.
-    // Yayınlanmamış bir yarı mamul de listeye girer (tek versiyonu taslaksa);
-    // aksi hâlde onu kullanan reçete "bulunamadı" hatası verirdi.
+    // Tek versiyonu taslak olan yarı mamul de listeye girer; yoksa onu kullanan
+    // reçete "bulunamadı" hatası verirdi.
     const wanted =
       options.preferDraftFor === version.recipe_id ? "draft" : "active";
 
@@ -212,13 +184,7 @@ export type RecipeCostResult =
   | { ok: true; cost: number; costPerYieldUnit: number }
   | { ok: false; error: string };
 
-/**
- * Maliyeti hesaplar ama hata fırlatmaz.
- *
- * Liste ekranında tek bir bozuk reçetenin (eksik dönüşüm tanımı, döngü)
- * tüm sayfayı çökertmesini istemiyoruz; o satır hatasını gösterip diğerleri
- * çalışmaya devam etsin.
- */
+/** Maliyeti hata fırlatmadan hesaplar; bozuk bir reçete listeyi çökertmesin. */
 export function safeCost(recipeId: string, catalog: Catalog): RecipeCostResult {
   try {
     const breakdown = costOfRecipe(recipeId, catalog);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { requireAppUser } from "@/lib/auth/current-user";
+import { currentPrices } from "@/core/pricing";
+import { requirePathAccess } from "@/lib/auth/current-user";
 import { buildWorkbookBuffer } from "@/lib/excel/workbook";
 import { createClient } from "@/lib/supabase/server";
 
@@ -11,13 +12,11 @@ const COLUMNS = [
   { header: "KDV (%)", key: "vat", width: 10 },
 ];
 
-/**
- * Menü ürünlerini Excel olarak indirir — hem "boş şablon" (query'siz)
- * hem "mevcut menüyü dışa aktar/toplu düzenle" (aynı format) aynı yol.
- * `?template=1` ile boş, örnek bir satırlı şablon döner.
- */
+/** Menü ürünleri: `?template=1` boş şablon, aksi hâlde mevcut menü aynı biçimde. */
 export async function GET(request: Request) {
-  await requireAppUser();
+  if (!(await requirePathAccess("/recipes"))) {
+    return new NextResponse(null, { status: 403 });
+  }
   const isTemplate = new URL(request.url).searchParams.get("template") === "1";
 
   let rows: Record<string, string | number>[] = [];
@@ -30,24 +29,17 @@ export async function GET(request: Request) {
       supabase
         .from("menu_prices")
         .select("menu_item_id, price, vat_rate, branch_id, valid_from")
-        .is("branch_id", null)
-        .order("valid_from", { ascending: false }),
+        .is("branch_id", null),
     ]);
-    // Yalnızca genel (şubesiz) fiyat dışa aktarılıyor — şube bazlı istisnalar
-    // bu toplu düzenleme akışının kapsamı dışında, elle yönetilmeye devam eder.
-    const priceByItem = new Map<string, { price: number; vat: number }>();
-    for (const p of prices ?? []) {
-      if (!priceByItem.has(p.menu_item_id)) {
-        priceByItem.set(p.menu_item_id, { price: Number(p.price), vat: Number(p.vat_rate) });
-      }
-    }
+    // Toplu düzenleme yalnızca genel (şubesiz) fiyatları kapsar.
+    const priceByItem = currentPrices(prices ?? [], null);
     rows = (items ?? []).map((item) => {
       const priceInfo = priceByItem.get(item.id);
       return {
         name: item.name,
         category: item.categories?.name ?? "",
         price: priceInfo?.price ?? "",
-        vat: priceInfo?.vat ?? "",
+        vat: priceInfo?.vatRate ?? "",
       };
     });
   }

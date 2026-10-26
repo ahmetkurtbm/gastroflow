@@ -36,8 +36,7 @@ export default async function PaymentPage({
   const customer = await loadCustomerForOrder(orderId);
   const isClosed = order.status !== "open";
 
-  // Kalan bakiyeyi 2/3/4 kişiye böl ve ilk payı öner. money.allocate
-  // kullanıldığı için toplam her zaman bakiyeye eşit — kuruş kaybolmaz.
+  // money.allocate kullanıldığı için paylar toplamı bakiyeye eşittir.
   const splitSuggestions = isZero(order.remaining)
     ? []
     : [2, 3, 4].map((parts) => ({
@@ -186,11 +185,7 @@ export default async function PaymentPage({
           {dict.cash.closed}
         </p>
       ) : isZero(order.remaining) ? (
-        // Kalan bakiye sıfır ama adisyon HÂLÂ AÇIK — iki sebepten biri: (1)
-        // tutar zaten sıfırdı (ikram/kupon/puan tam karşıladı, `recordPayment`
-        // amount>0 istediği için buradan hiç geçemezdi), (2) tam ödendi ama
-        // kasiyer "ödeme sonrası kapat"ı işaretlemedi — masa önceden ödenip
-        // müşteri hâlâ oturuyor demek. İkisinde de kapatma AYNI, elle.
+        // Kalan sıfır ama adisyon açık: tutar zaten sıfırdı ya da ödenip açık bırakıldı.
         <section className="mt-4 rounded-xl border border-line bg-surface-raised p-5 text-center">
           <p className="mb-3 text-sm text-ink-muted">
             {isZero(order.total)

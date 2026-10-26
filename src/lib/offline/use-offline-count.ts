@@ -21,13 +21,8 @@ function getOnlineServerSnapshot() {
 }
 
 /**
- * Sayım ekranının offline durumu — `useOfflineOrder`'daki aynı desen
- * (bkz. o dosyadaki `useSyncExternalStore` yorumu: sunucu/istemci hydration
- * uyuşmazlığını önlüyor).
- *
- * POS'tan farkı: burada "iyimser satır" gösterecek bir şey yok — sayfadaki
- * girdiler zaten yerel state'te (kullanıcı yazdığı an ekranda), kaydetme
- * yalnızca o sayfayı kuyruğa atıp arkaplanda senkronlamak.
+ * Sayım ekranının offline durumu (`useOfflineOrder` ile aynı desen). Girdiler
+ * zaten yerel state'te olduğu için iyimser satır yoktur.
  */
 export function useOfflineCount(locationId: string) {
   const router = useRouter();
@@ -38,12 +33,7 @@ export function useOfflineCount(locationId: string) {
   );
   const [queueCount, setQueueCount] = useState(0);
   const syncingRef = useRef(false);
-  // `sync()` başlarken kuyruğu bir kerede okuyor (`drainQueue` içinde); o
-  // anda çalışan bir sync varsa yeni çağrı sessizce atlanıyordu — ama
-  // atlanan çağrının EKLEDİĞİ mutasyon (ör. bir sonraki sayım sayfası) hiç
-  // işlenmeden kuyrukta kalabiliyordu (yalnızca isOnline değişince ya da
-  // bir sonraki savePage çağrısına kadar). Bu bayrak, meşgulken gelen
-  // isteği not eder; mevcut sync bitince otomatik tekrar dener.
+  // Sync meşgulken gelen çağrı not edilir ve bitince tekrar denenir.
   const resyncRequestedRef = useRef(false);
 
   const refreshQueueView = useCallback(async () => {
@@ -69,9 +59,6 @@ export function useOfflineCount(locationId: string) {
     }
   }, [refreshQueueView, router]);
 
-  // `sync()` her koşulda `refreshQueueView()`'ı içeriden çağırıyor (bkz.
-  // yukarısı) — bu yüzden mount'ta kuyruk görünümünü ayrıca yüklemeye gerek
-  // yok, bu tek effect ikisini de karşılıyor.
   useEffect(() => {
     if (isOnline) void sync();
   }, [isOnline, sync]);

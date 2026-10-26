@@ -13,8 +13,7 @@ async function readState() {
   return JSON.parse(raw) as { orderFlow: TestTenant; isolationOther: TestTenant };
 }
 
-// docs/HARITA.md §9, S1 senaryosuna karşılık gelir: masa aç → ürün ekle →
-// mutfağa gönder → kasada öde → adisyon kapanır.
+// Masa aç → ürün ekle → mutfağa gönder → kasada öde → adisyon kapanır.
 test("adisyon: masa aç → ürün ekle → mutfağa gönder → öde → kapat", async ({ page }) => {
   const { orderFlow } = await readState();
 

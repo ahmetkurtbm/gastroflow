@@ -19,12 +19,7 @@ function isoDaysAgo(days: number): string {
   return new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
 }
 
-/**
- * GastroFlow'un kendi kaydettiği ciro ile Excel'le toplu girilen yazarkasa
- * fişlerinin toplamını karşılaştırır (bkz. migration 0020'nin doc-comment'i:
- * ÖKC entegrasyonu mock, iki sistem arasında elle çift giriş var — bu ekran
- * o çift girişin tutup tutmadığını denetler).
- */
+/** Kayıtlı ciroyu Excel'le girilen yazarkasa fişleriyle karşılaştırır (ÖKC entegrasyonu mock). */
 export default async function FiscalReconciliationPage({
   searchParams,
 }: {

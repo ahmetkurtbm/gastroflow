@@ -36,7 +36,7 @@ const createShiftSchema = z
     path: ["endsAt"],
   });
 
-/** Yetki kontrolü RLS'in işi (`shift_schedules_insert`, `is_manager()`) — burada tekrarlanmıyor. */
+/** Yetki kontrolü RLS'tedir (`is_manager()`). */
 export async function createShift(
   _previous: ActionState,
   formData: FormData,
@@ -75,14 +75,9 @@ export async function createShift(
 const weekStartSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Geçersiz hafta");
 
 /**
- * Haftalık tablo görünümünün tek "Haftayı kaydet" butonu — tüm hafta × tüm
- * personel hücrelerini tek seferde yazar.
- *
- * Hücre bazında ekle/sil/güncelle ayrımı yapmak yerine, o hafta + o şubeye
- * ait TÜM vardiyaları silip formdan geleni yeniden yazıyoruz — tutarlı bir
- * anlık görüntü kurmanın en az hataya açık yolu. Bunun bilinçli bedeli: bu
- * haftada `createShift`'ten (not alanıyla) eklenmiş tekil bir vardiya varsa
- * o da silinir — sayfadaki uyarı metni bunu açıkça söylüyor.
+ * Haftalık tablonun "Haftayı kaydet" işlemi: o hafta ve şubedeki tüm
+ * vardiyaları silip formdakileri yeniden yazar. Not alanıyla tek tek eklenmiş
+ * vardiyalar da silinir; sayfa bunu uyarır.
  */
 export async function saveWeekSchedule(formData: FormData): Promise<void> {
   const weekStart = weekStartSchema.parse(formData.get("weekStart"));

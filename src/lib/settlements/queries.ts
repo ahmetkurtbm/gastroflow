@@ -19,13 +19,8 @@ export type ChannelReconciliation = {
 };
 
 /**
- * GastroFlow'un kendi kayıtlı "Gel Al"/"Self Servis" (paket) kanal cirosunu,
- * platformların (Yemeksepeti/Getir/Trendyol Go…) gönderdiği hakediş
- * raporlarının toplamıyla karşılaştırır — bkz. migration 0021.
- *
- * Masa (dine_in) siparişleri BİLEREK dışlanıyor: platformun hakediş raporu
- * yalnızca kendi üzerinden geçen siparişleri kapsıyor, dine_in cirosunu
- * karışıma katmak farkı anlamsızlaştırırdı.
+ * Paket kanallarının kayıtlı cirosunu platform hakediş raporlarıyla karşılaştırır.
+ * Masa siparişleri platform raporunda olmadığı için dışarıda bırakılır.
  */
 export async function loadChannelReconciliation(
   fromDate: string,

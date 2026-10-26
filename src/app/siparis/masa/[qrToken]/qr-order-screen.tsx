@@ -12,11 +12,8 @@ type CartLine =
   | { key: string; type: "combo"; id: string; name: string; unitPrice: number };
 
 /**
- * Müşterinin kendi telefonundan sipariş ekranı — sepet TAMAMEN yerel state'te
- * tutulur, "Siparişi gönder"e basana kadar sunucuya hiçbir şey yazılmaz.
- * Personel POS ekranındaki sepetin (bkz. `../pos/masa/[tableId]/cart.tsx`)
- * aksine offline kuyruğa BAĞLI DEĞİL — bu sayfa oturumsuz, `useOfflineOrder`
- * tenant/kullanıcı kimliği gerektiriyor, burada ikisi de yok.
+ * Müşterinin kendi telefonundan sipariş ekranı. Sepet yerel state'te tutulur ve
+ * gönderilene kadar sunucuya bir şey yazılmaz; oturum olmadığı için offline kuyruk yoktur.
  */
 export function QrOrderScreen({
   qrToken,

@@ -19,12 +19,7 @@ function isoDaysAgo(days: number): string {
   return new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
 }
 
-/**
- * GastroFlow'un kendi kayıtlı "Gel Al"/"Self Servis" cirosu ile paket
- * platformlarının (Yemeksepeti/Getir/Trendyol Go…) gönderdiği hakediş
- * raporlarının toplamını karşılaştırır. `/reports/fis-mutabakati`'nın
- * bire bir aynı deseni, farklı dış kaynak — bkz. migration 0021.
- */
+/** Paket kanalı cirosunu platform hakediş raporlarıyla karşılaştırır. */
 export default async function ChannelSettlementReconciliationPage({
   searchParams,
 }: {

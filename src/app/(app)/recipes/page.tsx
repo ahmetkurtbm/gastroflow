@@ -15,11 +15,7 @@ const percentFormatter = new Intl.NumberFormat("tr-TR", {
   maximumFractionDigits: 1,
 });
 
-/**
- * Food cost oranını renklendirir.
- * Sektörde tipik hedef %25–35. Üstü ya fiyat düşük, ya porsiyon cömert,
- * ya da tedarik maliyeti kaçmış demektir.
- */
+/** Food cost oranının rengi (tipik hedef %25–35). */
 function ratioTone(ratio: number): string {
   if (ratio <= 0.35) return "text-ok";
   if (ratio <= 0.45) return "text-warn";

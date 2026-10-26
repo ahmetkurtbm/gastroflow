@@ -1,15 +1,6 @@
-// =============================================================================
-// process-notifications — bildirim kuyruğu işleyicisi (MOCK gönderici)
-// =============================================================================
-// `notification_outbox`'taki `pending` satırları alır, alıcıları
-// `notification_rules` (yoksa makul varsayılan roller) üzerinden çözer,
-// ve GERÇEKTEN MAIL GÖNDERMEDEN `notification_log`'a "gönderilmiş gibi"
-// yazar. Gerçek gönderim (Resend vb.) eklenince değişecek TEK yer burası —
-// şema ve tetikleyiciler hiç değişmeyecek.
-//
-// service_role ile çalışır: RLS'i bilerek atlıyor (bu bir arka plan
-// işçisi, kullanıcı oturumu yok) ama yalnızca bu iki tabloya dokunuyor.
-// =============================================================================
+// Bildirim kuyruğu işleyicisi. Bekleyen outbox satırlarının alıcılarını
+// `notification_rules` ya da varsayılan rollerden çözer. Gerçek e-posta henüz
+// gönderilmiyor (mock); sonuç `notification_log`'a yazılır.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -22,8 +13,7 @@ type EventType =
   | "day_end_summary"
   | "weekly_cost_report";
 
-// Plan §7'deki olay → varsayılan alıcı tablosu. Bir tenant kendi
-// notification_rules satırını eklerse o öncelikli, eklemezse bu geçerli.
+// Varsayılan alıcı rolleri; tenant'ın kendi kuralı varsa o geçerlidir.
 const DEFAULT_RECIPIENT_ROLES: Record<EventType, string[]> = {
   low_stock: ["storekeeper", "manager"],
   negative_stock: ["manager", "owner"],
@@ -38,15 +28,30 @@ function money(n: number): string {
   return n.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ₺";
 }
 
+// Kuyruk tüm kiracıları kapsadığı için yalnızca service role anahtarıyla
+// çağrılabilir; gateway'in kabul ettiği anon/publishable anahtar yetmez.
+function isServiceRoleCaller(req: Request, serviceRoleKey: string): boolean {
+  const header = req.headers.get("authorization") ?? "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+  if (!serviceRoleKey || token.length !== serviceRoleKey.length) return false;
+  let diff = 0;
+  for (let i = 0; i < token.length; i++) {
+    diff |= token.charCodeAt(i) ^ serviceRoleKey.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
 
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-  );
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!isServiceRoleCaller(req, serviceRoleKey)) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  const supabase = createClient(Deno.env.get("SUPABASE_URL") ?? "", serviceRoleKey);
 
   const { data: pending, error: pendingError } = await supabase
     .from("notification_outbox")
@@ -74,7 +79,6 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     if (rule && rule.is_enabled === false) {
-      // Kural bilerek kapatılmış — kuyruktan düş, hiç göndermeye çalışma.
       await supabase
         .from("notification_outbox")
         .update({ status: "sent", processed_at: new Date().toISOString() })
@@ -127,8 +131,7 @@ Deno.serve(async (req: Request) => {
     }
 
     for (const r of recipients) {
-      // MOCK: burada gerçek bir mail servisi (ör. Resend) çağrılacaktı.
-      // Şimdilik "gönderilseydi ne olurdu" kaydı düşülüyor.
+      // Mock: gerçek gönderim (ör. Resend) burada yapılacak.
       await supabase.from("notification_log").insert({
         tenant_id: item.tenant_id,
         outbox_id: item.id,

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requireAppUser } from "@/lib/auth/current-user";
+import { requirePathAccess } from "@/lib/auth/current-user";
 import { buildWorkbookBuffer } from "@/lib/excel/workbook";
 import { createClient } from "@/lib/supabase/server";
 
@@ -12,7 +12,9 @@ const COLUMNS = [
 
 /** Hammadde listesini Excel olarak indirir — `?template=1` boş örnek şablon. */
 export async function GET(request: Request) {
-  await requireAppUser();
+  if (!(await requirePathAccess("/recipes"))) {
+    return new NextResponse(null, { status: 403 });
+  }
   const isTemplate = new URL(request.url).searchParams.get("template") === "1";
 
   let rows: Record<string, string | number>[] = [];

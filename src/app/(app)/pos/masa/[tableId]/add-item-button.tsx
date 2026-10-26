@@ -1,13 +1,6 @@
 "use client";
 
-/**
- * Tek dokunuşla sepete ekleme.
- *
- * Sunucu aksiyonuna bağlı bir form DEĞİL — tıklama offline kuyruğa
- * (`useOfflineOrder`'ın `addItem`'ı) gidiyor ki bağlantı kesikken de
- * çalışabilsin. Bilerek modal/form açmıyoruz: garson kalabalık bir
- * serviste ürüne dokunup devam edebilmeli.
- */
+/** Tek dokunuşla sepete ekler; offline kuyruğa gider, bağlantı yokken de çalışır. */
 export function AddItemButton({
   name,
   price,
@@ -17,11 +10,8 @@ export function AddItemButton({
 }: {
   name: string;
   price: number;
-  /** Yoğun serviste kalabalık bir ızgarada isim yerine görsele bakıp ürünü
-   * bulmak çok daha hızlı — bkz. migration 0014. */
   imageUrl?: string | null;
-  /** Seçenek grubu varsa küçük bir gösterge ekler — dokununca sepete
-   * eklemeden önce seçim paneli açılacağını garsona önceden bildirir. */
+  /** Seçenek grubu varsa eklemeden önce seçim paneli açılacağını gösterir. */
   hasOptions?: boolean;
   onAdd: () => void;
 }) {

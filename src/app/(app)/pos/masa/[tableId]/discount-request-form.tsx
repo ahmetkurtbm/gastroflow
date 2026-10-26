@@ -7,15 +7,7 @@ import { requestLineDiscount, type ActionState } from "@/lib/orders/actions";
 
 const initial: ActionState = {};
 
-/**
- * İkram/iskonto isteği paneli.
- *
- * Müdür/patron için istek anında onaylanmış sayılır (RLS bunu zorunlu kılar,
- * bkz. migration 0011); diğer roller için "onay bekliyor" olarak açılır ve
- * fiyata `/approvals`'tan onaylanana kadar yansımaz. Bu ayrımı burada
- * göstermiyoruz — sunucu zaten doğru durumu yazıyor, kullanıcı sonucu
- * satırdaki etiketten görecek.
- */
+/** İkram/iskonto isteği paneli; onay durumunu sunucu ve RLS belirler. */
 export function DiscountRequestForm({
   orderLineId,
   itemName,
@@ -30,8 +22,6 @@ export function DiscountRequestForm({
 
   useEffect(() => {
     if (state.ok) onClose();
-    // onClose kasıtlı olarak dependency değil — her render'da yeniden
-    // tetiklenmesin diye yalnızca state.ok değişince çalışsın istiyoruz.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.ok]);
 

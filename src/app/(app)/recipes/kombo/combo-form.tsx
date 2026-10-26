@@ -9,14 +9,7 @@ const initial: ActionState = {};
 
 let nextRowId = 1;
 
-/**
- * Kombo oluşturma formu — dinamik satır listesi (ürün + miktar).
- *
- * "Ürünler" reçetedeki gibi tek bir alan değil, N tane {menuItemId, quantity}
- * çifti — bu yüzden `useActionState`'in tek FormData'sına birden çok
- * `menuItemId`/`quantity` alanı aynı isimle basılıyor (bkz. `formData.getAll`
- * kullanan `createCombo`), sıradaki değerler eşleşiyor.
- */
+/** Kombo formu; aynı adlı `menuItemId`/`quantity` alanları sırayla eşleşir. */
 export function ComboForm({ menuItems }: { menuItems: { id: string; name: string }[] }) {
   const [state, action] = useActionState(createCombo, initial);
   const [rowIds, setRowIds] = useState<number[]>([nextRowId++]);

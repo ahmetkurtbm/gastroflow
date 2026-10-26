@@ -19,13 +19,8 @@ export type Reconciliation = {
 };
 
 /**
- * GastroFlow'un kendi kayıtlı cirosuyla, dışarıdan (Excel'le) girilen
- * yazarkasa fişlerinin toplamını gün gün karşılaştırır.
- *
- * ÖKC entegrasyonu mock olduğu için (bkz. migration 0020) bu iki rakam
- * BAĞIMSIZ iki kaynaktan geliyor — biri tutmuyorsa ya kasiyer bir satışı
- * yazarkasaya geçirmeyi unutmuş, ya da fişi burada girmeyi. Fark ne kadar
- * büyükse o kadar acil bakılması gereken bir gün demek.
+ * Kayıtlı ciroyu Excel'le girilen yazarkasa fişleriyle gün gün karşılaştırır.
+ * ÖKC entegrasyonu mock olduğu için iki rakam bağımsız kaynaklardan gelir.
  */
 export async function loadReconciliation(fromDate: string, toDate: string): Promise<Reconciliation> {
   const supabase = await createClient();

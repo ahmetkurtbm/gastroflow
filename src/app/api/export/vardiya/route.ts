@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requireAppUser } from "@/lib/auth/current-user";
+import { requirePathAccess } from "@/lib/auth/current-user";
 import { buildWorkbookBuffer } from "@/lib/excel/workbook";
 import {
   addDaysToDateStr,
@@ -30,13 +30,11 @@ const timeFormatter = new Intl.DateTimeFormat("tr-TR", {
   timeZone: "Europe/Istanbul",
 });
 
-/**
- * Haftalık vardiya çizelgesini Excel olarak indirir — personel çoğunlukla
- * sisteme giriş yapmıyor, müdür bu dosyayı/görselini WhatsApp'tan paylaşıyor.
- * `?week=` bir Pazartesi tarihi (YYYY-MM-DD); verilmezse içinde bulunulan hafta.
- */
+/** Haftalık vardiya çizelgesi; `?week=` Pazartesi tarihi (YYYY-MM-DD), yoksa bu hafta. */
 export async function GET(request: Request) {
-  await requireAppUser();
+  if (!(await requirePathAccess("/settings"))) {
+    return new NextResponse(null, { status: 403 });
+  }
   const url = new URL(request.url);
   const weekParam = url.searchParams.get("week");
   const weekStart = mondayOfWeek(

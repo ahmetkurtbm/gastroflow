@@ -1,9 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 
-// Türkiye 2016'dan beri yaz saati uygulamıyor — sabit UTC+3. Bu yüzden
-// "haftalık tablo"daki saat girişlerini (İstanbul yerel saati) veritabanının
-// beklediği UTC'ye çevirirken saat dilimi veritabanı yerine BASİT bir sabit
-// ofsetle yapılabiliyor; DST hesaba katmaya gerek yok.
+// Türkiye 2016'dan beri sabit UTC+3; yaz saati hesabına gerek yok.
 const ISTANBUL_UTC_OFFSET_HOURS = 3;
 
 /** "YYYY-MM-DD" + "HH:mm" (İstanbul yerel saati) → UTC ISO zaman damgası. */
@@ -73,13 +70,8 @@ export type ShiftScheduleEntry = {
 };
 
 /**
- * Vardiya planı — geçmişi de gösteriyoruz (yalnızca gelecek değil), çünkü
- * "geçen hafta kim çalışmıştı" sorusu maaş/prim hesaplarken gerçekten
- * soruluyor. En yakın vardiya en üstte.
- *
- * `shift_schedules.user_id` `auth.users`'a referans veriyor, `profiles`'a
- * değil — PostgREST ikisi arasında FK olmadığı için otomatik embed edemiyor
- * (bkz. `loadPendingDiscounts`'taki aynı desen, src/lib/orders/queries.ts).
+ * Vardiya planı, geçmiş dahil, en yakını üstte. `shift_schedules.user_id`
+ * auth.users'a bağlı olduğu için profiller ayrı sorguyla eşleştirilir.
  */
 export async function loadShiftSchedule(): Promise<ShiftScheduleEntry[]> {
   const supabase = await createClient();
@@ -114,14 +106,7 @@ export type SplitShiftSchedule = {
   past: ShiftScheduleEntry[];
 };
 
-/**
- * `loadShiftSchedule`'ı "yaklaşan"/"geçmiş" olarak ikiye ayırır.
- *
- * `Date.now()` bilerek BİR Server Component'in RENDER'ı içinde değil, burada
- * çağrılıyor — `react-hooks/purity` kuralı bileşen gövdesinde saf olmayan
- * çağrıları reddediyor; sorgu katmanı bir bileşen olmadığı için bu kısıtın
- * dışında.
- */
+/** `loadShiftSchedule`'ı yaklaşan ve geçmiş olarak ayırır. */
 export function splitShiftSchedule(shifts: ShiftScheduleEntry[]): SplitShiftSchedule {
   const now = Date.now();
   return {
@@ -133,13 +118,8 @@ export function splitShiftSchedule(shifts: ShiftScheduleEntry[]): SplitShiftSche
 export type WeekCell = { userId: string; dayIndex: number; startTime: string; endTime: string };
 
 /**
- * `weekStartDateStr` (Pazartesi, "YYYY-MM-DD") ile başlayan 7 günlük
- * pencerede kim hangi gün kaç-kaça çalışıyor — haftalık tablo görünümü için.
- *
- * Bir kullanıcının aynı günde BİRDEN FAZLA vardiyası varsa (ör. mola arası
- * split shift) yalnızca İLKİ tabloya sığar — tablo tek hücreli, bu bilinçli
- * bir basitleştirme. Böyle bir durumda personel ikinci vardiyasını tekil
- * "Yeni vardiya" formundan (not alanıyla) eklemeli.
+ * Pazartesi başlayan 7 günlük haftalık tablo. Aynı gün birden fazla vardiyası
+ * olan kişinin yalnızca ilki tabloya sığar.
  */
 export async function loadWeekSchedule(weekStartDateStr: string): Promise<WeekCell[]> {
   const supabase = await createClient();

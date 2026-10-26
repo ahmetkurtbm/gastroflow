@@ -6,14 +6,7 @@ import { useState } from "react";
 
 import { AppNav } from "./app-nav";
 
-/**
- * Mobilde kenar çubuğu yerine hamburger → kayar menü (drawer).
- *
- * Önceki tasarımda mobilde menü öğeleri yatay kaydırmalı bir şeritte
- * duruyordu — PC'deki dikey liste mantığı telefonda çalışmıyordu (kullanıcı
- * geri bildirimi). Artık masaüstüyle aynı gezinme deseni (aynı `AppNav`
- * bileşeni), yalnızca bir panel içinde açılıp kapanıyor.
- */
+/** Mobilde kenar çubuğu yerine açılır menü; masaüstüyle aynı `AppNav` kullanılır. */
 export function MobileNavDrawer({
   items,
   tenantName,
@@ -35,10 +28,7 @@ export function MobileNavDrawer({
   const pathname = usePathname();
   const [lastPathname, setLastPathname] = useState(pathname);
 
-  // Bir bağlantıya dokununca panel otomatik kapansın — aksi hâlde her
-  // navigasyonda kullanıcı elle kapatmak zorunda kalır. React'ın önerdiği
-  // "render sırasında state ayarla" deseni: bir effect'e gerek yok, ekstra
-  // bir render kaybı da olmuyor (bkz. react.dev "You Might Not Need an Effect").
+  // Bağlantıya dokununca panel kapanır (render sırasında state güncellenir, effect yok).
   if (pathname !== lastPathname) {
     setLastPathname(pathname);
     setOpen(false);

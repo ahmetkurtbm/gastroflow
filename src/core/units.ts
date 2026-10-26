@@ -1,25 +1,7 @@
 /**
- * Birim dönüşüm motoru.
- *
- * Neden ayrı ve merkezi bir motor:
- * Restoran maliyet sistemlerinde en sık sessizce bozulan yer birim dönüşümüdür.
- * Tedarikçiden "koli" alırsın, depoda "adet" sayarsın, reçetede "gram" kullanırsın.
- * Bu zinciri her ekranda tekrar tekrar kurmak, er ya da geç birinin ters çevirmesiyle
- * sonuçlanır — ve yanlış maliyet, yanlış kâr raporu demektir. Fark edilmesi aylar sürer.
- *
- * İki tür dönüşüm var ve karıştırılmamaları şart:
- *
- *   1. EVRENSEL — fizik sabiti. 1 kg her zaman 1000 g'dır.
- *      `BASE_UNITS` içinde tanımlı.
- *
- *   2. ÜRÜNE ÖZEL — ürüne göre değişir, evrensel değildir:
- *        · Ambalaj: 1 koli kola = 24 adet, ama 1 koli cips = 12 paket
- *        · Yoğunluk: 1 lt su = 1000 g, ama 1 lt zeytinyağı = 916 g
- *        · Birim ağırlık: 1 adet yumurta = 55 g
- *      Bunlar `UnitConversion[]` olarak dışarıdan verilir.
- *
- * "koli"yi evrensel bir birim yapmak, bu motorun engellemek için var olduğu hatanın
- * ta kendisidir.
+ * Birim dönüşümleri. Evrensel dönüşümler (1 kg = 1000 g) `BASE_UNITS`'te,
+ * ürüne özel olanlar (1 koli = 24 adet, 1 lt zeytinyağı = 916 g) dışarıdan
+ * `UnitConversion[]` olarak verilir. Ambalaj birimleri evrensel değildir.
  */
 
 export type Dimension = "mass" | "volume" | "count";
@@ -32,12 +14,7 @@ export type BaseUnit = {
   readonly label: string;
 };
 
-/**
- * Evrensel birimler. Temel birimler: gram, mililitre, adet.
- *
- * Buraya "koli", "paket", "kasa" gibi ambalaj birimleri EKLENMEZ — onlar ürüne
- * özeldir ve `UnitConversion` ile verilir.
- */
+/** Evrensel birimler; temel birimler gram, mililitre ve adet. */
 export const BASE_UNITS = {
   g: { code: "g", dimension: "mass", toBase: 1, label: "gram" },
   kg: { code: "kg", dimension: "mass", toBase: 1000, label: "kilogram" },
@@ -52,18 +29,13 @@ export type BaseUnitCode = keyof typeof BASE_UNITS;
 /** Ambalaj birimleri de olabildiği için birim kodu serbest metindir. */
 export type UnitCode = string;
 
-/** Her boyutun temel birimi — dönüşümlerin buluşma noktası. */
 const DIMENSION_BASE: Record<Dimension, BaseUnitCode> = {
   mass: "g",
   volume: "ml",
   count: "adet",
 };
 
-/**
- * Ürüne özel dönüşüm: `1 from = factor × to`.
- *
- * Örnek: `{ from: "koli", to: "adet", factor: 24 }` → 1 koli 24 adettir.
- */
+/** Ürüne özel dönüşüm: `1 from = factor × to`. */
 export type UnitConversion = {
   readonly from: UnitCode;
   readonly to: UnitCode;
@@ -90,29 +62,13 @@ export function dimensionOf(code: UnitCode): Dimension | null {
   return getBaseUnit(code)?.dimension ?? null;
 }
 
-/**
- * Kenar, çarpanı KESİR olarak taşır: geçiş `× mul ÷ div` demektir.
- *
- * Neden tek bir ondalık çarpan değil: ters yönlü geçişlerde `1/400` gibi ikili
- * tabanda tam gösterilemeyen sayılar oluşuyor ve zincir uzadıkça hata birikiyor.
- * 9600 g → koli hesabı 2 yerine 1,9999999999999998 veriyordu.
- *
- * Pay ve paydayı ayrı biriktirip bölmeyi en sona bıraktığımızda, çarpanlar
- * tam sayı olduğu sürece (ki ambalaj ve birim ağırlıklarda neredeyse hep öyledir)
- * sonuç tam çıkıyor.
- */
+// Çarpan pay/payda olarak taşınır ve bölme en sona bırakılır; `1/400` gibi
+// kesirler zincirlenince 2 yerine 1,9999999999999998 çıkıyordu.
 type Edge = { readonly to: UnitCode; readonly mul: number; readonly div: number };
 
-/** Biriken çarpan: gerçek değeri `num / den`. */
 type Ratio = { readonly num: number; readonly den: number };
 
-/**
- * Dönüşüm grafiğini kurar.
- *
- * Düğümler birimler, kenarlar çarpanlardır. Evrensel birimler kendi temel
- * birimlerine bağlanır; ürüne özel dönüşümler ek kenar olarak eklenir ve her
- * kenar çift yönlü kurulur (koli→adet varsa adet→koli de vardır).
- */
+/** Birimler düğüm, çarpanlar çift yönlü kenar olan dönüşüm grafiği. */
 function buildGraph(conversions: readonly UnitConversion[]): Map<UnitCode, Edge[]> {
   const graph = new Map<UnitCode, Edge[]>();
 
@@ -150,13 +106,7 @@ function buildGraph(conversions: readonly UnitConversion[]): Map<UnitCode, Edge[
   return graph;
 }
 
-/**
- * `from` biriminden `to` birimine geçiş çarpanını bulur.
- *
- * Genişlik öncelikli arama kullanır: en kısa dönüşüm zincirini seçer, böylece
- * kayan nokta hatası mümkün olan en az adımda birikir. Ziyaret edilen düğümler
- * işaretlendiği için döngüsel tanımlar (koli→adet, adet→koli) sonsuz döngüye girmez.
- */
+/** En kısa dönüşüm zincirinin çarpanını genişlik öncelikli aramayla bulur. */
 function findFactor(
   from: UnitCode,
   to: UnitCode,
@@ -195,11 +145,8 @@ function findFactor(
 }
 
 /**
- * Miktarı bir birimden diğerine çevirir.
- *
- * @param conversions Ürüne özel dönüşümler (ambalaj, yoğunluk, birim ağırlık).
- * @throws {UnitConversionError} Dönüşüm mümkün değilse — sessizce yanlış sayı
- *   döndürmektense hata vermek yeğdir. `kg → lt` yoğunluk verilmeden çevrilemez.
+ * Miktarı bir birimden diğerine çevirir. Dönüşüm yoksa yanlış sayı döndürmek
+ * yerine hata fırlatır (ör. yoğunluk verilmeden kg → lt).
  */
 export function convert(
   quantity: number,
@@ -217,7 +164,6 @@ export function convert(
     const fromDim = dimensionOf(from);
     const toDim = dimensionOf(to);
 
-    // En sık karşılaşılan durum bu; kullanıcıya ne yapması gerektiğini söyle.
     if (fromDim && toDim && fromDim !== toDim) {
       throw new UnitConversionError(
         `${from} → ${to} dönüşümü için ürüne özel bir tanım gerekiyor (yoğunluk veya birim ağırlık). Örnek: 1 lt zeytinyağı = 916 g.`,
@@ -229,12 +175,10 @@ export function convert(
     );
   }
 
-  // Bölmeyi sona bırakıyoruz: `9600 × 1 ÷ 4800` tam 2 verir,
-  // `9600 × (1/400) × (1/12)` ise 1,9999999999999998.
   return (quantity * ratio.num) / ratio.den;
 }
 
-/** Dönüşüm mümkün mü? Form doğrulamasında hata fırlatmadan sormak için. */
+/** Dönüşüm mümkün mü? Hata fırlatmadan sorar. */
 export function canConvert(
   from: UnitCode,
   to: UnitCode,
@@ -243,7 +187,6 @@ export function canConvert(
   try {
     return findFactor(from, to, conversions) !== null;
   } catch {
-    // Bozuk dönüşüm tanımı da "çevrilemez" sayılır.
     return false;
   }
 }

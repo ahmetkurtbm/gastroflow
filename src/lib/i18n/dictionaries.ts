@@ -1,14 +1,6 @@
 /**
- * Çok dilli arayüz — sözlükler.
- *
- * Kapsam bilinçli olarak sınırlı: kabuk (menü, roller, çıkış), giriş ekranı
- * ve en sık kullanılan operasyon ekranları (POS/salon, sipariş, mutfak
- * gönderimi, kasa/ödeme, patron paneli başlığı) çevrildi. Geri kalan
- * ekranlar (raporlar, satın alma, reçeteler, ayarlar, denetim, mutfak
- * ekranının gövdesi) henüz `dict`e hiç bağlanmadı — JSX'te doğrudan Türkçe
- * metin olarak duruyor, İngilizce seçilse bile Türkçe görünür. Kapsamı
- * genişletmek: (1) buraya yeni anahtar eklemek, (2) ilgili ekranda
- * `getServerDictionary()`/`useI18n()` ile o anahtarı kullanmak.
+ * Arayüz sözlükleri. Kabuk, giriş ve sık kullanılan operasyon ekranları
+ * çevrilmiştir; raporlar, satın alma, reçeteler ve ayarlar henüz Türkçe.
  */
 
 export const LOCALES = ["tr", "en"] as const;

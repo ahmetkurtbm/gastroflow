@@ -10,13 +10,7 @@ import { FloorCanvas } from "./floor-canvas";
 
 export const metadata: Metadata = { title: "Salon ve Masalar" };
 
-/**
- * Alan (salon/bahçe/teras) ve masa yönetimi.
- *
- * Faz 0-7'de bu veriler yalnızca SQL ile ekleniyordu (bkz. supabase/seed.sql);
- * `/pos` ekranı "Ayarlar → Salon ve masalar bölümünden ekle" diyordu ama
- * böyle bir ekran yoktu. Bu sayfa o boşluğu kapatıyor.
- */
+/** Alan (salon, bahçe, teras) ve masa yönetimi. */
 export default async function SalonSettingsPage() {
   const areas = await loadFloorAdmin();
 

@@ -2,14 +2,7 @@
 
 import { useEffect } from "react";
 
-/**
- * App-shell service worker'ını kaydeder (bkz. public/sw.js).
- *
- * Sayfa içeriği üretmediği için sunucu bileşeni olamaz — `navigator` yalnızca
- * tarayıcıda var. Kayıt başarısız olursa (ör. eski tarayıcı, gizli sekme
- * bazı kısıtlamaları) sessizce yutuyoruz: service worker olmadan uygulama
- * zaten normal (yalnızca offline-first değil) çalışmaya devam eder.
- */
+/** Service worker'ı kaydeder; kayıt başarısızsa uygulama offline özelliği olmadan çalışır. */
 export function RegisterServiceWorker() {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;

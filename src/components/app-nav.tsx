@@ -3,14 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-/**
- * Menü listesi — hem masaüstü kenar çubuğunda hem mobil kayar menüde
- * (bkz. `MobileNavDrawer`) aynı bileşen kullanılıyor, ikisi de dikey liste.
- *
- * Maddeler sunucuda role göre süzülüp geliyor (bkz. navFor) ve aktif dile
- * çevrilmiş olarak geliyor. Buradaki tek iş aktif olanı işaretlemek — bu
- * yüzden client bileşeni.
- */
+/** Masaüstü kenar çubuğu ve mobil menünün ortak listesi; öğeler sunucuda role göre süzülür. */
 export function AppNav({ items }: { items: readonly { href: string; label: string }[] }) {
   const pathname = usePathname();
 

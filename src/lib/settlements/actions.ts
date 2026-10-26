@@ -29,13 +29,8 @@ function normalizeDateCell(raw: string): string {
 }
 
 /**
- * Paket platformu hakediş raporlarını Excel'den toplu içe aktarır (bkz.
- * `/api/export/hakedis-sablonu`, `loadChannelReconciliation`).
- *
- * `fiscal_receipts` importundaki AYNI gerekçe: platformun kendi dosyasını
- * ayrıştırmıyoruz (her platformun formatı farklı, hiçbiriyle API bağlantımız
- * yok) — kendi şablonumuzu (Tarih, Platform, Tutar) sağlıyoruz, kullanıcı
- * rakamları oradan taşıyor. Append-only; eşleştirme/güncelleme yok.
+ * Paket platformu hakediş raporlarını kendi şablonumuzdan içe aktarır
+ * (platform dosyaları ayrıştırılmaz). Yalnızca ekleme yapılır.
  */
 export async function importChannelSettlements(
   _previous: ImportResult,
@@ -47,10 +42,10 @@ export async function importChannelSettlements(
       return { error: "Bir dosya seç." };
     }
 
+    const user = await requireAppUser();
     const rows = await parseWorkbookRows(file);
     if (rows.length === 0) return { error: "Dosyada satır bulunamadı." };
 
-    const user = await requireAppUser();
     if (!user.branchId) return { error: "Şube ataması olmayan kullanıcı hakediş giremez." };
     const supabase = await createClient();
 

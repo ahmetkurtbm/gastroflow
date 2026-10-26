@@ -19,10 +19,8 @@ function fail(error: unknown): AddStaffState {
   return { error: "Beklenmeyen bir hata oluştu." };
 }
 
+// Ekranda bir kez gösterilip elle iletilir; personel girişten sonra değiştirir.
 function generateTempPassword(): string {
-  // URL-safe, 12 karakter — ekranda bir kez gösterilip elle iletiliyor
-  // (mail/SMS entegrasyonu yok). Personel giriş yaptıktan sonra kendi
-  // şifresini değiştirebilir (Supabase Auth'un kendi akışı).
   return randomBytes(9).toString("base64url");
 }
 
@@ -34,14 +32,12 @@ const addStaffSchema = z.object({
 });
 
 /**
- * Yeni personel ekler: hem auth.users'ta hesap açar hem memberships'e yazar.
+ * Yeni personel ekler: auth.users'ta hesap açar ve memberships'e yazar.
  *
- * İki adım da başarılı olmalı — biri başarısız olursa öbürü GERİ ALINIR.
- * `auth.users` oluşturma yalnızca service_role ile yapılabilir (RLS'in
- * erişemeyeceği bir şema); `memberships` yazımı ise BİLEREK normal, oturumlu
- * istemciyle yapılıyor — hem RLS'in `is_owner()` kontrolünden gerçekten
- * geçsin, hem `audit_log`'a doğru aktör (auth.uid()) yazılsın. service_role
- * ile yazılsaydı denetim kaydı "kim ekledi" sorusunu cevapsız bırakırdı.
+ * Hesap açma service role gerektirir, bu yüzden önce çağıranın patron olduğu
+ * doğrulanır. Üyelik ise oturumlu istemciyle yazılır ki RLS'teki `is_owner()`
+ * kontrolünden de geçsin ve denetim kaydına doğru kişi düşsün. Üyelik
+ * yazılamazsa açılan hesap geri silinir.
  */
 export async function addStaffMember(
   _previous: AddStaffState,
@@ -56,6 +52,10 @@ export async function addStaffMember(
     });
 
     const user = await requireAppUser();
+    if (user.role !== "owner") {
+      return { error: "Bu işlemi yapma yetkin yok." };
+    }
+
     const admin = createServiceRoleClient();
     const password = generateTempPassword();
 
@@ -70,7 +70,8 @@ export async function addStaffMember(
       if (createError.code === "email_exists") {
         return { error: "Bu e-posta ile zaten bir hesap var." };
       }
-      return { error: createError.message };
+      console.error("Personel hesabı açılamadı:", createError);
+      return { error: "Hesap açılamadı, tekrar deneyin." };
     }
 
     const supabase = await createClient();
@@ -82,10 +83,10 @@ export async function addStaffMember(
     });
 
     if (memberError) {
-      // Üyelik yazılamadıysa sahipsiz bir auth.users satırı bırakmayalım —
-      // aksi hâlde "üyeliği olmayan oturum" ekranına düşen, kimsenin
-      // bilmediği bir hesap kalırdı.
-      await admin.auth.admin.deleteUser(created.user.id);
+      const { error: rollbackError } = await admin.auth.admin.deleteUser(created.user.id);
+      if (rollbackError) {
+        console.error(`Üyeliği yazılamayan hesap silinemedi (${created.user.id}):`, rollbackError);
+      }
       if (memberError.code === "42501") {
         return { error: "Bu işlemi yapma yetkin yok." };
       }
@@ -102,14 +103,9 @@ export async function addStaffMember(
 const staffIdSchema = z.object({ id: z.uuid() });
 
 /**
- * Personeli pasif eder (silmez — `audit_log` ve geçmiş üyelik kaydı kalır,
- * işten ayrılan biri geri dönerse yeniden aktive edilebilir).
- *
- * Not: JWT claim'leri ~1 saatlik token ömrü boyunca önbellekte kalır (bkz.
- * migration 0004) — pasif edilen personelin mevcut oturumu, token yenilenene
- * ya da yeniden giriş yapana kadar erişmeye devam edebilir. Anında iptal
- * gerekiyorsa Supabase Dashboard → Authentication'dan kullanıcı oturumları
- * elle sonlandırılmalı.
+ * Personeli pasif eder; üyelik ve denetim geçmişi silinmez. JWT claim'leri
+ * token yenilenene kadar (~1 saat) geçerli kalır; anında kesmek için oturum
+ * Supabase panelinden sonlandırılmalıdır.
  */
 export async function deactivateStaffMember(formData: FormData) {
   const { id } = staffIdSchema.parse({ id: formData.get("id") });
@@ -127,8 +123,6 @@ export async function reactivateStaffMember(formData: FormData) {
 
   const { error } = await supabase.from("memberships").update({ is_active: true }).eq("id", id);
   if (error) {
-    // 23505 = unique_violation → memberships_one_active_per_user: bu kişinin
-    // zaten başka bir aktif üyeliği var (ör. iki kez eklenmiş).
     if (error.code === "23505") {
       throw new Error("Bu kişinin zaten aktif bir üyeliği var.");
     }

@@ -41,9 +41,7 @@ export function OrderScreen({
     cancelOptimistic,
   } = useOfflineOrder(order.id);
 
-  // Kombo ekleme offline kuyruğa BİLEREK dahil değil — bileşenlere ayırmak
-  // (fiyat/reçete okuma) sunucuda oluyor, kuyruktaki tek bir "form gönder"
-  // çağrısıyla aynı basitlikte değil. Çevrimdışıyken buton devre dışı kalır.
+  // Kombo bileşenlere sunucuda ayrıldığı için offline kuyrukta yok; çevrimdışıyken buton kapalı.
   const [comboPending, startComboTransition] = useTransition();
   const [comboError, setComboError] = useState<string | null>(null);
 
@@ -62,8 +60,7 @@ export function OrderScreen({
     });
   }
 
-  // Seçenek grubu olan bir ürüne dokununca, sepete direkt eklemeden önce bu
-  // panel açılır. Seçeneksiz ürünler eskisi gibi tek dokunuşla eklenir.
+  // Seçenek grubu olan ürün için önce seçim paneli açılır.
   const [pickerItem, setPickerItem] = useState<MenuItem | null>(null);
 
   function handleTap(item: MenuItem) {

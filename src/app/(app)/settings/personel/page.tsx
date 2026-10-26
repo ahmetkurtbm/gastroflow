@@ -9,14 +9,7 @@ import { StaffRow } from "./staff-row";
 
 export const metadata: Metadata = { title: "Personel" };
 
-/**
- * Personel (garson/müdür/kasa/...) ekleme ve rol yönetimi.
- *
- * Daha önce bunun tek yolu SQL çalıştırmaktı — bir restoran sahibi kendi
- * başına personel ekleyemiyordu. `addStaffMember` hem auth.users'ta hesap
- * açıyor hem memberships'e yazıyor; şifre yalnızca oluşturma anında bir kez
- * gösteriliyor (bkz. add-staff-form.tsx).
- */
+/** Personel ekleme ve rol yönetimi; geçici şifre yalnızca oluşturma anında bir kez gösterilir. */
 export default async function PersonelSettingsPage() {
   const user = await requireAppUser();
   const [staff, branches] = await Promise.all([loadStaff(), loadBranchOptions()]);

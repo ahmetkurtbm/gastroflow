@@ -27,12 +27,7 @@ const wasteSchema = z.object({
   note: z.string().trim().max(300).optional(),
 });
 
-/**
- * Zayiat kaydı açar — ledger'a negatif bir `waste` hareketi yazar.
- *
- * Miktar formdan pozitif girilir (kullanıcı "2 kg attım" der, eksi işaretini
- * kendisi düşünmesin); satıra yazılırken işaret burada çevrilir.
- */
+/** Zayiat kaydı açar; formda pozitif girilen miktar ledger'a negatif yazılır. */
 export async function recordWaste(
   _previous: ActionState,
   formData: FormData,
@@ -87,19 +82,9 @@ const transferSchema = z
   });
 
 /**
- * Depolar arası transfer — ledger'a bir çıkış (`transfer_out`) ve bir giriş
- * (`transfer_in`) satırı birlikte yazar.
- *
- * İkisi TEK bir insert çağrısıyla (çok satırlı VALUES) gönderiliyor —
- * Postgres bunu tek atomik işlem olarak uygular, yani ya ikisi de yazılır
- * ya hiçbiri; "çıkış yazıldı ama giriş yazılamadı" durumu imkânsız.
- *
- * İki bacak aynı `reference_id`'yi (transfer kimliği) paylaşır ama farklı
- * `reference_type` kullanır (`stock_transfer_out` / `stock_transfer_in`) —
- * `stock_movements_reference_item_unique` kısıtı (reference_type,
- * reference_id, item) üçlüsüne göre çalıştığı için bu iki satır çakışmaz,
- * ama aynı transferin tekrar gönderilmesi (ör. çift tıklama) her iki
- * bacakta da ayrı ayrı engellenir.
+ * Depolar arası transfer. Çıkış ve giriş satırları tek insert'te yazılır, yani
+ * ikisi birlikte ya yazılır ya yazılmaz. Aynı transferin tekrar gönderilmesi
+ * `stock_movements_reference_item_unique` kısıtıyla engellenir.
  */
 export async function recordTransfer(
   _previous: ActionState,
@@ -166,22 +151,12 @@ export async function recordTransfer(
 }
 
 /**
- * Fiziksel sayım — körleme: form ekranı mevcut bakiyeyi göstermez, sayan
- * kişi ne görürse onu yazar. Sunucu tarafında sayılan miktarla sistemdeki
- * bakiye arasındaki farkı hesaplayıp `count_adjustment` hareketi yazar.
+ * Körleme fiziksel sayım: ekran mevcut bakiyeyi göstermez, fark sunucuda
+ * hesaplanıp `count_adjustment` olarak yazılır. Boş bırakılan ve farkı sıfır
+ * olan ürünler atlanır; mobil ekran sayfa sayfa gönderebilir.
  *
- * Boş bırakılan ürünler atlanır (o oturumda sayılmadı demektir) — bu,
- * ekranın "sayfa sayfa kaydet" akışının temel taşı: mobil sayım ekranı
- * (bkz. src/lib/offline/use-offline-count.ts) ürünleri sayfalara bölüp her
- * sayfayı ayrı bir çağrıyla, yalnızca o sayfadaki `qty_<id>` alanlarıyla
- * gönderiyor. Fark sıfırsa hareket hiç yazılmaz, ledger'ı anlamsız sıfır
- * kayıtlarla şişirmez.
- *
- * `batchId` idempotency anahtarı: aynı sayfa iki kez gönderilirse (offline
- * kuyruktan yeniden deneme, ya da yanıt ağda kaybolup istemci tekrar
- * denerse) `stock_movements`'taki `(reference_type, reference_id,
- * inventory_item_id)` kısıtı ikinci denemeyi reddeder — depletion'daki aynı
- * desen (bkz. migration 0010).
+ * `batchId` idempotency anahtarıdır: aynı sayfanın tekrar gönderimi
+ * `stock_movements` unique kısıtına takılır.
  */
 export async function recordCount(
   _previous: ActionState,
@@ -260,10 +235,7 @@ export async function recordCount(
 
     const { error } = await supabase.from("stock_movements").insert(rows);
     if (error) {
-      // 23505 = unique_violation → bu sayfa (aynı batchId) daha önce zaten
-      // kaydedilmiş (offline kuyruktan yeniden deneme, ya da yanıt ağda
-      // kaybolup istemci tekrar denedi). "Zaten yapılmış" say, hata dönme —
-      // aksi hâlde kuyruk bu sayfayı sonsuza dek yeniden denerdi.
+      // 23505: bu sayfa zaten kaydedilmiş; kuyruk sonsuza kadar denemesin.
       if (error.code === "23505") return { ok: true };
       return { error: error.message };
     }
@@ -280,16 +252,7 @@ const importCountRowSchema = z.object({
   counted: z.coerce.number().min(0),
 });
 
-/**
- * Fiziksel sayımı Excel'den toplu içe aktarır — bazı işletmeler sayımı
- * kağıtta/Excel'de yapıp sonradan sisteme giriyor (bkz. `/api/export/sayim-sablonu`).
- *
- * `recordCount`'la AYNI körleme mantığı ve AYNI fark hesabı — şablon sistemdeki
- * bakiyeyi göstermiyor, yalnızca hammadde adı ve boş bir "Sayılan Miktar"
- * sütunu var. Fark, sunucu tarafında sayılanla mevcut bakiye arasından
- * hesaplanıp `count_adjustment` hareketi olarak yazılıyor — tek satır bile
- * elle girilenle davranış açısından ayırt edilemez.
- */
+/** Fiziksel sayımı Excel'den içe aktarır; `recordCount` ile aynı körleme ve fark hesabı. */
 export async function importStockCount(
   _previous: ImportResult,
   formData: FormData,
@@ -301,10 +264,10 @@ export async function importStockCount(
       return { error: "Bir dosya seç." };
     }
 
+    const user = await requireAppUser();
     const rows = await parseWorkbookRows(file);
     if (rows.length === 0) return { error: "Dosyada satır bulunamadı." };
 
-    const user = await requireAppUser();
     const supabase = await createClient();
     const batchId = randomUUID();
 

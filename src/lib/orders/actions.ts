@@ -7,18 +7,12 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { allocateProportional, money, toLira } from "@/core/money";
+import { currentPrices } from "@/core/pricing";
 import { requireAppUser } from "@/lib/auth/current-user";
 import { createClient } from "@/lib/supabase/server";
 
-/**
- * Sipariş yazma işlemleri.
- *
- * `addOrderLine` ve `sendToKitchen`, hem normal (çevrimiçi form) çağrısında
- * hem de `src/lib/offline` kuyruğu tarafından yeniden denemede kullanılıyor.
- * `client_key`, çift gönderime karşı tek koruma: kuyruk tarafı üretip
- * gönderiyorsa onu, yoksa sunucu kendisi üretiyor. Bkz. migration 0008'deki
- * `(order_id, client_key)` unique kısıtı.
- */
+// `client_key` çift gönderime karşı korur: offline kuyruk aynı mutasyonu
+// tekrar denediğinde `(order_id, client_key)` unique kısıtına takılır.
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -30,14 +24,7 @@ function fail(error: unknown): ActionState {
   return { error: "Beklenmeyen bir hata oluştu." };
 }
 
-/**
- * Bir masaya yeni adisyon açar ve sipariş ekranına yönlendirir.
- *
- * "Aynı masada tek açık adisyon" kuralı veritabanı kısıtında (bkz. migration
- * 0008, `orders_one_open_per_table`). Burada tekrar kontrol ETMİYORUZ —
- * iki garson aynı masayı aynı anda açmaya çalışırsa ikincisi kısıttan döner,
- * biz onu 42501/23505 diye ayırt etmeden anlaşılır mesaja çeviriyoruz.
- */
+/** Masaya adisyon açar. Masa başına tek açık adisyon kuralı veritabanı kısıtındadır. */
 export async function openTable(formData: FormData) {
   const tableId = z.uuid().parse(formData.get("tableId"));
   const user = await requireAppUser();
@@ -82,15 +69,7 @@ const openChannelSchema = z.object({
   channel: z.enum(["takeaway", "self_service"]),
 });
 
-/**
- * Masasız bir sipariş açar (Gel Al / Self Servis).
- *
- * `openTable`'dan farkı: masa yok, dolayısıyla "aynı masada tek açık
- * adisyon" kısıtı (migration 0008) hiç devreye girmiyor — aynı anda birden
- * çok gel-al siparişi normal, her tıklama YENİ bir sipariş açar. Ekran
- * `/pos/masa/[tableId]` değil `/pos/siparis/[orderId]` — masa yerine
- * doğrudan adisyon id'sine göre yükleniyor (bkz. `loadOpenOrderById`).
- */
+/** Masasız sipariş (Gel Al / Self Servis) açar; her çağrı yeni bir adisyondur. */
 export async function openChannelOrder(formData: FormData) {
   const input = openChannelSchema.parse({ channel: formData.get("channel") });
   const user = await requireAppUser();
@@ -122,16 +101,8 @@ const addLineSchema = z.object({
   menuItemId: z.uuid(),
   quantity: z.coerce.number().positive().max(999),
   note: z.string().trim().max(200).optional(),
-  // Offline kuyruğu bu anahtarı kendisi üretip gönderir; sağlanmazsa (normal
-  // çevrimiçi form gönderimi) sunucu üretir. Anahtarı istemcinin üretmesinin
-  // sebebi: bağlantı kesilip yeniden denendiğinde AYNI mutasyonun iki kez
-  // kayıt açmaması. Sunucu her denemede yeni anahtar üretseydi, kaç kez
-  // denendiği kadar satır oluşurdu.
   clientKey: z.uuid().optional(),
-  // Yalnızca KİMLİKLERİ alıyoruz — ad ve fiyat farkı istemciden gelmiyor.
-  // Aksi hâlde biri formu manipüle edip "büyük boy" seçip fiyat farkını
-  // 0 olarak gönderebilirdi. Gerçek ad/fiyat aşağıda veritabanından okunup
-  // dondurulur (menü fiyatıyla aynı prensip).
+  // Yalnızca kimlikler alınır; ad ve fiyat farkı veritabanından okunur.
   modifierIds: z.array(z.uuid()).optional(),
 });
 
@@ -164,25 +135,30 @@ export async function addOrderLine(
       return { error: "Bu adisyon artık açık değil." };
     }
 
-    // Fiyatı SATIR ANINDA dondurmak için güncel fiyatı burada okuyoruz.
-    // Şubeye özel fiyat varsa o, yoksa genel fiyat (branch_id IS NULL) geçerli.
-    const { data: prices } = await supabase
-      .from("menu_prices")
-      .select("price, vat_rate, branch_id, valid_from")
-      .eq("menu_item_id", input.menuItemId)
-      .or(`branch_id.eq.${order.branch_id},branch_id.is.null`)
-      .order("valid_from", { ascending: false });
+    const { data: menuItem } = await supabase
+      .from("menu_items")
+      .select("id")
+      .eq("id", input.menuItemId)
+      .eq("is_active", true)
+      .maybeSingle();
 
-    const price =
-      prices?.find((p) => p.branch_id === order.branch_id) ??
-      prices?.find((p) => p.branch_id === null);
+    if (!menuItem) {
+      return { error: "Bu ürün artık satışta değil." };
+    }
+
+    const { data: priceRows } = await supabase
+      .from("menu_prices")
+      .select("menu_item_id, price, vat_rate, branch_id, valid_from")
+      .eq("menu_item_id", input.menuItemId)
+      .or(`branch_id.eq.${order.branch_id},branch_id.is.null`);
+
+    const price = currentPrices(priceRows ?? [], order.branch_id).get(input.menuItemId);
 
     if (!price) {
       return { error: "Bu ürünün tanımlı bir fiyatı yok." };
     }
 
-    // Aktif reçete versiyonunu da dondurulacak şekilde okuyoruz — Faz 3'teki
-    // stok düşümü, satışın yapıldığı andaki gramajı kullanacak.
+    // Satış anındaki reçete versiyonu satırda dondurulur; stok düşümü onu kullanır.
     const { data: recipe } = await supabase
       .from("recipes")
       .select("id, recipe_versions(id, status)")
@@ -192,20 +168,34 @@ export async function addOrderLine(
     const recipeVersionId =
       recipe?.recipe_versions?.find((v) => v.status === "active")?.id ?? null;
 
-    // Modifier ad/fiyatını burada, veritabanından okuyup dondurüyoruz —
-    // istemciden gelen değere güvenmiyoruz.
-    let modifiers: { name: string; price_delta: number }[] = [];
-    if (input.modifierIds && input.modifierIds.length > 0) {
-      const { data: modifierRows } = await supabase
-        .from("modifiers")
-        .select("id, name, price_delta")
-        .in("id", input.modifierIds)
-        .eq("is_active", true);
+    // Seçenekler bu ürünün gruplarından olmalı ve grup kurallarına uymalı.
+    const { data: groups } = await supabase
+      .from("modifier_groups")
+      .select("id, name, min_select, max_select, modifiers(id, name, price_delta, is_active)")
+      .eq("menu_item_id", input.menuItemId);
 
-      if (!modifierRows || modifierRows.length !== input.modifierIds.length) {
-        return { error: "Seçilen seçeneklerden biri artık geçerli değil." };
+    const selectedIds = new Set(input.modifierIds ?? []);
+    if (selectedIds.size !== (input.modifierIds?.length ?? 0)) {
+      return { error: "Aynı seçenek birden fazla kez seçilemez." };
+    }
+
+    const modifiers: { name: string; price_delta: number }[] = [];
+    for (const group of groups ?? []) {
+      const chosen = (group.modifiers ?? []).filter((m) => m.is_active && selectedIds.has(m.id));
+      if (chosen.length < group.min_select || chosen.length > group.max_select) {
+        return { error: `"${group.name}" için seçim eksik ya da fazla.` };
       }
-      modifiers = modifierRows.map((m) => ({ name: m.name, price_delta: m.price_delta }));
+      for (const m of chosen) {
+        modifiers.push({ name: m.name, price_delta: m.price_delta });
+        selectedIds.delete(m.id);
+      }
+    }
+    if (selectedIds.size > 0) {
+      return { error: "Seçilen seçeneklerden biri artık geçerli değil." };
+    }
+    const unitTotal = price.price + modifiers.reduce((sum, m) => sum + Number(m.price_delta), 0);
+    if (unitTotal < 0) {
+      return { error: "Seçeneklerle birlikte ürün fiyatı sıfırın altına düşemez." };
     }
 
     const lineClientKey = input.clientKey ?? randomUUID();
@@ -218,7 +208,7 @@ export async function addOrderLine(
         menu_item_id: input.menuItemId,
         quantity: input.quantity,
         unit_price: price.price,
-        vat_rate: price.vat_rate,
+        ...(price.vatRate !== null ? { vat_rate: price.vatRate } : {}),
         recipe_version_id: recipeVersionId,
         note: input.note,
         created_by: user.userId,
@@ -228,10 +218,8 @@ export async function addOrderLine(
       .maybeSingle();
 
     if (error) {
-      // 23505 = unique_violation → (order_id, client_key) çifti zaten var.
-      // Offline kuyruğun aynı mutasyonu ikinci kez denediği anlamına gelir;
-      // bu bir hata değil, "zaten yapıldı" demektir. Hata döndürseydik kuyruk
-      // sonsuza dek bu mutasyonu denemeye devam ederdi.
+      // 23505: aynı client_key ile satır zaten var, yani kuyruk aynı isteği
+      // ikinci kez gönderdi. Hata dönülürse kuyruk sonsuza kadar yeniden dener.
       if (error.code === "23505") {
         revalidatePath("/pos", "layout");
         return { ok: true };
@@ -248,8 +236,6 @@ export async function addOrderLine(
           price_delta: m.price_delta,
         })),
       );
-      // Ana satır zaten eklendi; modifier eklenemezse akışı durdurmuyoruz
-      // ama günlüğe düşüyoruz — sessizce yutulursa fiyat farkı kaybolurdu.
       if (modifierError) {
         console.error(`Modifier eklenemedi (satır ${insertedLine.id}):`, modifierError);
       }
@@ -268,19 +254,8 @@ const addComboSchema = z.object({
 });
 
 /**
- * Bir komboyu adisyona ekler.
- *
- * Kombo, KENDİ BAŞINA satılabilir bir varlık değil — yalnızca bir
- * fiyatlandırma kısayolu. Bileşenlerine ayrılıp her biri için SIRADAN bir
- * `order_lines` satırı açılır (bkz. migration 0012'deki tasarım notu):
- * stok düşümü, KDS, reçete maliyeti hiçbirinin kombo diye ayrı bir kod yolu
- * bilmesine gerek kalmaz. Fiyat, kombonun sabit toplamından bileşenlerin
- * GÜNCEL normal fiyatlarına ORANTILI olarak dağıtılır (`allocateProportional`)
- * — hesap bölmedeki `allocate()`'in eşit değil, ağırlıklı hâli.
- *
- * `addOrderLine`'daki gibi her bileşenin AKTİF reçete versiyonu satırda
- * dondurulur — aksi hâlde stok düşümü (`depleteOrderStock`, yalnızca
- * `recipe_version_id` dolu satırları işler) bu satırları sessizce atlardı.
+ * Komboyu adisyona ekler. Kombo bileşenlerine ayrılır ve her biri sıradan bir
+ * satır olur; kombo fiyatı bileşenlerin güncel fiyatlarına orantılı dağıtılır.
  */
 export async function addComboToOrder(
   _previous: ActionState,
@@ -306,7 +281,7 @@ export async function addComboToOrder(
 
     const { data: combo } = await supabase
       .from("combos")
-      .select("id, name, price, is_active, combo_items(menu_item_id, quantity)")
+      .select("id, name, price, is_active, combo_items(menu_item_id, quantity, menu_items(is_active))")
       .eq("id", input.comboId)
       .maybeSingle();
     if (!combo || !combo.is_active) {
@@ -316,30 +291,25 @@ export async function addComboToOrder(
     if (comboItems.length === 0) {
       return { error: "Bu komboda ürün tanımlı değil." };
     }
+    if (comboItems.some((item) => !item.menu_items?.is_active)) {
+      return { error: "Kombodaki ürünlerden biri artık satışta değil." };
+    }
 
     const itemIds = comboItems.map((i) => i.menu_item_id);
 
     const [pricesResult, recipesResult] = await Promise.all([
       supabase
         .from("menu_prices")
-        .select("menu_item_id, price, branch_id, valid_from")
+        .select("menu_item_id, price, vat_rate, branch_id, valid_from")
         .in("menu_item_id", itemIds)
-        .or(`branch_id.eq.${order.branch_id},branch_id.is.null`)
-        .order("valid_from", { ascending: false }),
+        .or(`branch_id.eq.${order.branch_id},branch_id.is.null`),
       supabase
         .from("recipes")
         .select("menu_item_id, recipe_versions(id, status)")
         .in("menu_item_id", itemIds),
     ]);
 
-    const priceByItem = new Map<string, number>();
-    for (const row of pricesResult.data ?? []) {
-      if (row.branch_id === order.branch_id) {
-        priceByItem.set(row.menu_item_id, Number(row.price));
-      } else if (!priceByItem.has(row.menu_item_id)) {
-        priceByItem.set(row.menu_item_id, Number(row.price));
-      }
-    }
+    const priceByItem = currentPrices(pricesResult.data ?? [], order.branch_id);
     if (comboItems.some((item) => !priceByItem.has(item.menu_item_id))) {
       return { error: "Kombo bileşenlerinden birinin fiyatı tanımlı değil." };
     }
@@ -351,29 +321,28 @@ export async function addComboToOrder(
       recipeVersionByItem.set(recipe.menu_item_id, active?.id ?? null);
     }
 
-    // Supabase `numeric` sütunları TS tipinde `number` görünse de çoğu zaman
-    // çalışma anında STRING döner (PostgREST'in wire davranışı) — `money()`
-    // `Number.isFinite()` kullanıyor, bu string'i COERCE ETMEZ ve sessizce
-    // yanlış (ya da NaN'a yakın) bir sonuç üretebilir. Bu yüzden her DB
-    // kaynaklı sayı burada açıkça `Number(...)`'a sarılıyor — kod tabanının
-    // her yerindeki aynı desen (bkz. `priceByItem` doldurma satırı yukarıda).
+    // PostgREST numeric değerleri string döndürebilir; hepsi Number() ile sarılır.
     const quantityByItem = new Map(comboItems.map((item) => [item.menu_item_id, Number(item.quantity)]));
     const weights = comboItems.map((item) =>
-      money(priceByItem.get(item.menu_item_id)! * quantityByItem.get(item.menu_item_id)!),
+      money(priceByItem.get(item.menu_item_id)!.price * quantityByItem.get(item.menu_item_id)!),
     );
     const allocated = allocateProportional(money(Number(combo.price)), weights);
 
-    const rows = comboItems.map((item, index) => ({
-      tenant_id: user.tenantId,
-      order_id: input.orderId,
-      menu_item_id: item.menu_item_id,
-      quantity: quantityByItem.get(item.menu_item_id)!,
-      unit_price: toLira(allocated[index]!) / quantityByItem.get(item.menu_item_id)!,
-      recipe_version_id: recipeVersionByItem.get(item.menu_item_id) ?? null,
-      note: `Kombo: ${combo.name}`,
-      created_by: user.userId,
-      client_key: randomUUID(),
-    }));
+    const rows = comboItems.map((item, index) => {
+      const vatRate = priceByItem.get(item.menu_item_id)!.vatRate;
+      return {
+        tenant_id: user.tenantId,
+        order_id: input.orderId,
+        menu_item_id: item.menu_item_id,
+        quantity: quantityByItem.get(item.menu_item_id)!,
+        unit_price: toLira(allocated[index]!) / quantityByItem.get(item.menu_item_id)!,
+        ...(vatRate !== null ? { vat_rate: vatRate } : {}),
+        recipe_version_id: recipeVersionByItem.get(item.menu_item_id) ?? null,
+        note: `Kombo: ${combo.name}`,
+        created_by: user.userId,
+        client_key: randomUUID(),
+      };
+    });
 
     const { error } = await supabase.from("order_lines").insert(rows);
     if (error) return { error: error.message };
@@ -389,9 +358,7 @@ export async function removeOrderLine(formData: FormData) {
   const id = z.uuid().parse(formData.get("id"));
   const supabase = await createClient();
 
-  // Yalnızca mutfağa gönderilmemiş satır silinebilir. Gönderilmiş bir ürünü
-  // "silmek" mutfağın hazırladığı bir şeyi izsiz kaybettirirdi — o durumda
-  // iptal, onay gerektiren bir aksiyondur (Faz 5/6'da eklenecek).
+  // Mutfağa gönderilmiş satır silinemez; onun için ikram/iptal onayı gerekir.
   const { error } = await supabase
     .from("order_lines")
     .delete()
@@ -402,10 +369,8 @@ export async function removeOrderLine(formData: FormData) {
   revalidatePath("/pos", "layout");
 }
 
+// Mutfak adım atlayamaz: sent → preparing → ready → served.
 const KITCHEN_TRANSITIONS = {
-  // key: mevcut durum → değer: izin verilen sonraki durum.
-  // Mutfak sırayı atlayamaz (sent'ten doğrudan served'e geçemez); bu, "unutulan"
-  // bir siparişin fark edilmeden servis edilmiş sayılmasını engeller.
   sent: "preparing",
   preparing: "ready",
   ready: "served",
@@ -427,8 +392,7 @@ export async function advanceKitchenTicket(formData: FormData) {
   const { error } = await supabase
     .from("order_lines")
     .update({ status: KITCHEN_TRANSITIONS[input.from] })
-    // `.eq("status", input.from)`: iki kişi aynı bileti aynı anda ilerletirse
-    // ikinci istek 0 satır günceller — sessizce iki adım atlanmaz.
+    // Aynı bileti eşzamanlı ilerleten ikinci istek 0 satır günceller.
     .eq("id", input.id)
     .eq("status", input.from);
 
@@ -446,13 +410,8 @@ const requestDiscountSchema = z.object({
 });
 
 /**
- * Bir satıra ikram/iskonto isteği açar.
- *
- * Müdür/patron kendi isteğini anında ONAYLANMIŞ olarak açar — kendi kendini
- * onaylatmasına gerek yok, RLS zaten yalnızca bu iki rolün bunu yapmasına
- * izin veriyor (bkz. migration 0011, `line_discounts_insert`). Diğer roller
- * (garson, kasa) isteği BEKLEYEN olarak açar; müdür/patron `/approvals`'tan
- * karar verene kadar fiyata yansımaz.
+ * Satıra ikram/iskonto isteği açar. Müdür ve patronun isteği doğrudan onaylı
+ * açılır; diğer rollerinki onay bekler. Yetki sınırı RLS'tedir.
  */
 export async function requestLineDiscount(
   _previous: ActionState,
@@ -482,8 +441,6 @@ export async function requestLineDiscount(
     });
 
     if (error) {
-      // 23505 = unique_violation → bu satırda zaten bekleyen bir istek var
-      // (bkz. `line_discounts_one_pending_per_line`).
       if (error.code === "23505") {
         return { error: "Bu üründe zaten bekleyen bir ikram/indirim isteği var." };
       }

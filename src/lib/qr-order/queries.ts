@@ -17,14 +17,8 @@ export type QrMenu = {
 };
 
 /**
- * QR ile açılan sipariş sayfası için masa + menü.
- *
- * Bu sorgu hiçbir oturuma bağlı değil — `qr_token`'ı bilen HERKES çağırabilir.
- * Bu yüzden `createServiceRoleClient()` (RLS bypass) kullanıyoruz ve tenant/
- * branch kimliğini yalnızca bu sorgudan, `tables` tablosundan okuyoruz;
- * istemciden gelen hiçbir kimlik bilgisine güvenilmiyor. Masa pasifse
- * (`is_active = false`) token geçersiz sayılır — silinen/kapatılan bir
- * masanın eski QR kodu boş bir menü değil, "geçersiz" göstermeli.
+ * QR sipariş sayfası için masa ve menü. Oturum yoktur; kiracı ve şube
+ * yalnızca token'la bulunan masadan okunur. Pasif masanın token'ı geçersizdir.
  */
 export async function loadQrMenu(qrToken: string): Promise<QrMenu | null> {
   const supabase = createServiceRoleClient();
@@ -38,8 +32,8 @@ export async function loadQrMenu(qrToken: string): Promise<QrMenu | null> {
   if (!table || !table.is_active) return null;
 
   const [categories, combos] = await Promise.all([
-    loadSellableMenu(table.branch_id, supabase, table.tenant_id),
-    loadSellableCombos(table.branch_id, supabase, table.tenant_id),
+    loadSellableMenu(table.branch_id, { client: supabase, tenantId: table.tenant_id }),
+    loadSellableCombos(table.branch_id, { client: supabase, tenantId: table.tenant_id }),
   ]);
 
   return {

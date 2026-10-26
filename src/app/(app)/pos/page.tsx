@@ -13,17 +13,12 @@ export const metadata: Metadata = { title: "Sipariş Al" };
 
 const CHANNEL_LABEL = { takeaway: "Gel Al", self_service: "Self Servis" } as const;
 
-/** "12:47" değil "18 dk" — garson saat değil geçen süreyle ilgilenir. */
+/** Açık kalma süresi: "18 dk". */
 function minutesSince(iso: string): number {
   return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
 }
 
-/**
- * Yerleşim canvas'ında masanın kutusu kişi sayısına göre büyür — 2 kişilik
- * bir masayla 10 kişilik bir masa gerçek salonda aynı yer kaplamıyor,
- * canvas'ta da aynı görünmemeli. `vertical` masayı duvara dik döndürür
- * (bkz. `/settings/salon`'daki aynı ölçek + yön ayarı, migration 0019).
- */
+/** Masa kutusu kişi sayısına göre büyür; `vertical` duvara dik çevirir. */
 function seatBoxSize(seats: number, vertical: boolean): { width: string; height: string } {
   const long = seats <= 2 ? "5rem" : seats <= 4 ? "6.5rem" : seats <= 8 ? "8rem" : "9.5rem";
   const short = "3.25rem";
@@ -46,9 +41,7 @@ export default async function PosFloorPlanPage() {
         {dict.pos.floorTitle}
       </h1>
 
-      {/* Masasız sipariş: Gel Al / Self Servis — her tıklama yeni bir
-          sipariş açar (masalardaki "tek açık adisyon" kısıtı burada yok,
-          bkz. openChannelOrder). */}
+      {/* Masasız sipariş: her tıklama yeni bir sipariş açar. */}
       <div className="mb-6 flex flex-wrap gap-2">
         {(Object.keys(CHANNEL_LABEL) as (keyof typeof CHANNEL_LABEL)[]).map((channel) => (
           <form key={channel} action={openChannelOrder}>
@@ -105,11 +98,7 @@ export default async function PosFloorPlanPage() {
           {areas
             .filter((area) => area.tables.length > 0)
             .map((area) => {
-              // `/settings/salon` görsel editörüyle AYNI mantık: yerleştirilmiş
-              // masalar her zaman canvas'ta kendi konumunda görünür — masa
-              // sayısı ne olursa olsun ızgaraya (sırayla dizilmeye) DÜŞMEZ.
-              // Yalnızca henüz hiç yerleştirilmemiş masalar (editörde de aynı
-              // ada sahip "yerleştirilmemiş" listesi) altta ayrı gösterilir.
+              // Yerleştirilmiş masalar canvas'ta, yerleştirilmemişler altta listelenir.
               const placed = area.tables.filter((t) => t.posX !== null && t.posY !== null);
               const unplaced = area.tables.filter((t) => t.posX === null || t.posY === null);
 
@@ -120,12 +109,7 @@ export default async function PosFloorPlanPage() {
                   </h2>
                   {placed.length > 0 ? (
                     <>
-                      {/* Yüzde tabanlı x/y konumlar geniş bir masaüstü canvas'ı
-                          için düşünülmüş — dar bir telefon ekranında aynı
-                          oranlar kutuları üst üste bindiriyordu (yatay
-                          yerleşimi dikeye sıkıştırmaya çalışmak gibi). Mobilde
-                          canvas yerine düz, tek sütunlu bir liste gösteriyoruz;
-                          masaüstünde canvas geri geliyor. */}
+                      {/* Mobilde canvas yerine liste gösterilir. */}
                       <div className="relative hidden h-80 w-full rounded-xl border border-line bg-surface-raised sm:block">
                         {placed.map((table) => (
                           <div
@@ -177,10 +161,8 @@ export default async function PosFloorPlanPage() {
 }
 
 /**
- * "Bu adisyonda tahsil edilecek bir şey kalmadı" rozeti — DOĞRUDAN
- * tıklanabilir, `/cash`'e gitmeden adisyonu kapatır. Kartı (bir `<Link>`)
- * saran `relative` div'in İÇİNDE ama ona iç içe DEĞİL kardeş bir eleman —
- * bir `<button>`'ı bir `<a>`'nın içine koymak geçersiz HTML olurdu.
+ * Tahsil edilecek tutar kalmadığında adisyonu doğrudan kapatan rozet. Kartın
+ * linkinin içinde değil kardeşi olarak durur; link içinde buton geçersizdir.
  */
 function ZeroTotalBadge({ orderId }: { orderId: string }) {
   return (
@@ -204,7 +186,6 @@ function TableCard({
 }: {
   table: Awaited<ReturnType<typeof loadFloorPlan>>[number]["tables"][number];
   dict: Dictionary["pos"];
-  /** Canvas (görsel yerleşim) içinde küçük kart — bkz. yukarısı "allPlaced". */
   compact?: boolean;
 }) {
   const { openOrder } = table;
@@ -233,8 +214,6 @@ function TableCard({
   }
 
   const minutes = minutesSince(openOrder.openedAt);
-  // Uzun süredir açık masa görsel olarak öne çıksın — garson unutup unutmadığını
-  // sorgulamadan bir bakışta görsün.
   const urgent = minutes >= 60;
 
   return (

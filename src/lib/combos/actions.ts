@@ -24,12 +24,8 @@ const createComboSchema = z.object({
 });
 
 /**
- * Yeni kombo oluşturur: `combos` + bileşen sayısı kadar `combo_items`.
- *
- * İkisi ayrı INSERT — aralarında bir transaction yok (PostgREST tek istekte
- * çoklu tablo transaction'ı desteklemiyor). Bileşen eklemesi başarısız
- * olursa yarım kalan komboyu geri alıyoruz — aksi hâlde bileşensiz, POS'ta
- * hiçbir işe yaramayan "hayalet" bir kombo kalırdı.
+ * Kombo ve bileşenlerini oluşturur. İki ayrı insert transaction içinde
+ * olmadığından, bileşenler yazılamazsa kombo geri silinir.
  */
 export async function createCombo(_previous: ActionState, formData: FormData): Promise<ActionState> {
   try {

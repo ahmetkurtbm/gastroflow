@@ -10,20 +10,8 @@ import {
 } from "@/lib/auth/access";
 
 /**
- * Next.js 16'da bu dosya `middleware.ts` değil `proxy.ts`; dışa aktarılan
- * fonksiyonun adı da `proxy` olmak zorunda.
- *
- * Üç iş yapıyor:
- *   1. Her istek için taze nonce üretip CSP başlığını kurar.
- *   2. Supabase oturumunu tazeler (Server Component'ler çerez yazamadığı için
- *      bunun yapılabileceği tek yer burası).
- *   3. Rol bazlı yönlendirme yapar.
- *
- * (3) bir güvenlik katmanı DEĞİLDİR — kullanıcıyı göremeyeceği ekrana boşuna
- * göndermemek içindir. Verinin korunması RLS'in işi.
- *
- * Not: nonce kullanmak tüm sayfaları dinamik render'a zorlar. Bu uygulamada
- * kayıp yok; POS, mutfak ekranı ve raporların hepsi zaten kullanıcıya özel.
+ * Her istekte CSP nonce'u üretir, Supabase oturumunu tazeler ve rol bazlı
+ * yönlendirme yapar. Yönlendirme güvenlik katmanı değildir; veriyi RLS korur.
  */
 
 const SUPABASE_ORIGIN = new URL(clientEnv.NEXT_PUBLIC_SUPABASE_URL).origin;
@@ -38,17 +26,12 @@ function generateNonce() {
 function buildCsp(nonce: string, isDev: boolean) {
   return [
     "default-src 'self'",
-    // 'strict-dynamic': nonce'lu script'in yüklediği script'ler de güvenilir sayılır,
-    // böylece Next'in chunk yükleyicisi çalışır ama sayfaya enjekte edilen bir
-    // <script> çalışmaz. Dev'de React hata ayıklama için eval kullanıyor.
+    // strict-dynamic: nonce'lu script'in yüklediği chunk'lar çalışır, enjekte edilen script çalışmaz.
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
-    // Tailwind ve Next satır içi stil üretiyor. Stil için nonce zinciri kurmak
-    // pratikte kırılgan; CSS enjeksiyonu XSS'e kıyasla çok düşük riskli.
+    // Tailwind ve Next satır içi stil ürettiği için style-src unsafe-inline.
     "style-src 'self' 'unsafe-inline'",
-    // blob: + data: → kamerayla çekilen fatura görselinin önizlemesi.
     `img-src 'self' blob: data: ${SUPABASE_ORIGIN}`,
     "font-src 'self' data:",
-    // wss: → Realtime (mutfak ekranı, canlı sipariş akışı).
     `connect-src 'self' ${SUPABASE_ORIGIN} ${SUPABASE_WS_ORIGIN}`,
     "worker-src 'self' blob:",
     "manifest-src 'self'",
@@ -65,8 +48,7 @@ export async function proxy(request: NextRequest) {
   const nonce = generateNonce();
   const csp = buildCsp(nonce, isDev);
 
-  // Next, CSP başlığını okuyup nonce'u kendi <script> etiketlerine kendisi
-  // ekliyor; bu yüzden ikisini de istek başlığına koymak gerekiyor.
+  // Next nonce'u istek başlığındaki CSP'den okuyup kendi script'lerine ekler.
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("content-security-policy", csp);
@@ -74,14 +56,12 @@ export async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("content-security-policy", csp);
 
-  // Oturum tazeleme response'a çerez yazabilir; bu yüzden aşağıda response'u
-  // yeniden oluşturmuyoruz — aksi hâlde yenilenen token kaybolur.
+  // Tazelenen oturum çerezi bu response'a yazılır; response yeniden oluşturulmamalı.
   const claims = await updateSession(request, response);
   const app = parseAppClaims(claims);
   const { pathname } = request.nextUrl;
 
   if (isPublicPath(pathname)) {
-    // Oturumu açık kullanıcıyı giriş sayfasında oyalamayalım.
     if (app && pathname === "/login") {
       return NextResponse.redirect(new URL(ROLE_HOME[app.role], request.url));
     }
@@ -95,8 +75,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (!canAccessPath(app.role, pathname)) {
-    // 403 yerine kendi ana ekranına yolluyoruz: garson yanlışlıkla /reports'a
-    // düşerse hata ekranı değil, POS ekranı görmeli.
+    // 403 yerine rolün ana ekranına yönlendir.
     return NextResponse.redirect(new URL(ROLE_HOME[app.role], request.url));
   }
 
@@ -105,12 +84,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Statik varlıklar hariç her istek.
-     *
-     * Prefetch istekleri bilerek DIŞLANMADI: prefetch de sayfa içeriği getirir,
-     * yetki kontrolünden geçmezse korumalı içerik önden çekilebilirdi.
-     */
+    // Statik varlıklar hariç her istek; prefetch de korumalı içerik çektiği için dahil.
     "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

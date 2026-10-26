@@ -4,13 +4,7 @@ import { clientEnv } from "@/lib/env";
 
 import type { Database } from "./database.types";
 
-/**
- * Tarayıcı tarafı Supabase istemcisi.
- *
- * Yalnızca `anon` anahtarını kullanır; eriştiği her satır RLS politikalarından
- * geçer. Yani buradan yapılan bir sorgu kötü niyetli de olsa başka bir tenant'ın
- * verisini getiremez — güvenlik bu dosyada değil, veritabanında zorlanır.
- */
+/** Tarayıcı istemcisi; yalnızca publishable anahtarı kullanır, her satır RLS'ten geçer. */
 export function createClient() {
   return createBrowserClient<Database>(
     clientEnv.NEXT_PUBLIC_SUPABASE_URL,

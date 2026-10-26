@@ -1,14 +1,5 @@
-/**
- * Sipariş tipleri ve saf yardımcı fonksiyonlar — sunucu bağımlılığı YOK.
- *
- * Bilerek `queries.ts`'den ayrı: `queries.ts` `@/lib/supabase/server`'ı
- * (dolayısıyla `next/headers`'ı) import ediyor, bu da onu yalnızca Server
- * Component'lerden kullanılabilir kılıyor. `cart.tsx` gibi bir Client
- * Component `effectiveUnitPrice`'a ihtiyaç duyduğunda `queries.ts`'den
- * import ederse, server-only zincir client paketine sızıp build'i kırıyor —
- * gerçekten yaşandı. Tip ve saf hesaplamalar burada, ikisi de rahatça
- * import edebilir.
- */
+// Sipariş tipleri ve saf yardımcılar. queries.ts'den ayrı tutulur çünkü
+// queries.ts sunucu modüllerini içe aktarır ve client bileşenleri bunları kullanır.
 
 export type OrderLineModifierView = { name: string; priceDelta: number };
 
@@ -28,8 +19,7 @@ export type OrderLineView = {
   modifiers: OrderLineModifierView[];
   status: string;
   note: string | null;
-  /** Bu satırdaki en güncel ikram/iskonto isteği (varsa) — reddedilmiş bir
-   * istek daha yeni bir istekle değiştirilene kadar gösterilmez. */
+  /** En güncel ikram/iskonto isteği; reddedilen istek yenisi gelene kadar gösterilmez. */
   discount: LineDiscountView | null;
 };
 
@@ -38,11 +28,7 @@ export function effectiveUnitPrice(line: OrderLineView): number {
   return line.unitPrice + line.modifiers.reduce((sum, m) => sum + m.priceDelta, 0);
 }
 
-/**
- * ONAYLANMIŞ bir ikram/iskontoyu ham tutara uygular. Bekleyen bir istek
- * tutarı DEĞİŞTİRMEZ — onaylanana kadar müşteri normal fiyatı öder, aksi
- * hâlde biri "ikram istedim" deyip onay beklerken bedava yemiş gibi görünürdü.
- */
+/** Yalnızca onaylanmış ikram/iskontoyu uygular; bekleyen istek tutarı değiştirmez. */
 export function applyLineDiscount(amount: number, discount: LineDiscountView | null): number {
   if (!discount || discount.status !== "approved") return amount;
   if (discount.kind === "comp") return 0;

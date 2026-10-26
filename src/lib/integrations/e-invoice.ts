@@ -1,12 +1,6 @@
 /**
- * e-Arşiv fatura entegrasyon arayüzü (GİB).
- *
- * Belirli ciro eşiğini aşan işletmeler için e-Arşiv fatura zorunlu
- * (bkz. PLAN.md §1.3). Gerçek entegrasyon GİB'in web servisiyle karşılıklı
- * sertifika/imza gerektirir — kapsam dışı. Perakende satışların büyük
- * çoğunluğunda zaten müşteri vergi numarası vermez; bu durumda ÖKC fişi
- * yasal olarak yeterlidir, e-Arşiv'e hiç gerek yoktur — adaptör bu ayrımı
- * (`buyerTaxId` yoksa `skipped`) kendi içinde yapıyor.
+ * e-Arşiv fatura arayüzü (GİB). Gerçek entegrasyon GİB sertifikası gerektirir;
+ * şu an mock çalışır. Vergi numarası yoksa fatura gerekmez (`skipped`).
  */
 
 export type EInvoiceInput = {

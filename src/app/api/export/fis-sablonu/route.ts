@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requireAppUser } from "@/lib/auth/current-user";
+import { requirePathAccess } from "@/lib/auth/current-user";
 import { buildWorkbookBuffer } from "@/lib/excel/workbook";
 import { createClient } from "@/lib/supabase/server";
 
@@ -10,12 +10,11 @@ const COLUMNS = [
   { header: "Tutar (₺)", key: "amount", width: 14 },
 ];
 
-/**
- * Yazarkasa fişi şablonu/dışa aktarımı — `?template=1` boş örnek satır,
- * aksi hâlde daha önce içe aktarılmış tüm fişler (gözden geçirmek için).
- */
+/** Yazarkasa fişi şablonu (`?template=1`) ya da içe aktarılmış fişlerin dökümü. */
 export async function GET(request: Request) {
-  await requireAppUser();
+  if (!(await requirePathAccess("/reports"))) {
+    return new NextResponse(null, { status: 403 });
+  }
   const isTemplate = new URL(request.url).searchParams.get("template") === "1";
 
   let rows: Record<string, string | number>[] = [];

@@ -1,3 +1,5 @@
+import "server-only";
+
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
@@ -5,12 +7,7 @@ import { clientEnv, getServerEnv } from "@/lib/env";
 
 import type { Database } from "./database.types";
 
-/**
- * Sunucu tarafı Supabase istemcisi (Server Component / Server Action / Route Handler).
- *
- * `anon` anahtarını kullanır — yani RLS yine devrede. Kullanıcının oturumu
- * çerezden okunur, dolayısıyla sorgular o kullanıcının kimliğiyle çalışır.
- */
+/** Oturumdaki kullanıcının kimliğiyle çalışan, RLS'e tabi sunucu istemcisi. */
 export async function createClient() {
   const cookieStore = await cookies();
 
@@ -28,8 +25,7 @@ export async function createClient() {
               cookieStore.set(name, value, options);
             }
           } catch {
-            // Server Component içinden çerez yazılamaz. Oturum yenilemeyi
-            // middleware üstlendiği için bunu yutmak güvenli.
+            // Server Component çerez yazamaz; oturumu proxy.ts tazeler.
           }
         },
       },
@@ -38,16 +34,9 @@ export async function createClient() {
 }
 
 /**
- * RLS'i BYPASS EDEN istemci. Her satırı görür, her satırı yazar.
- *
- * Sadece kullanıcı kimliğiyle yapılamayacak işler için: bildirim kuyruğunu işleyen
- * worker, cron ile üretilen özet raporlar, tenant provizyonu.
- *
- * Kurallar:
- * - Bir Client Component'ten ASLA import edilmez ("server-only" bunu build'de zorlar).
- * - Kullanıcıdan gelen bir girdiyle doğrudan filtre kurulmaz; tenant_id her zaman
- *   sunucunun kendi doğruladığı oturumdan gelir.
- * - Kullanmadan önce sor: bu gerçekten RLS ile yapılamıyor mu?
+ * RLS'i atlayan istemci; her kiracının her satırını okur ve yazar. Yalnızca
+ * kullanıcı kimliğiyle yapılamayan işler içindir (QR sipariş, stok düşümü,
+ * personel hesabı). Kiracı kimliği asla istemci girdisinden alınmaz.
  */
 export function createServiceRoleClient() {
   const { SUPABASE_SERVICE_ROLE_KEY } = getServerEnv();
@@ -62,7 +51,6 @@ export function createServiceRoleClient() {
     clientEnv.NEXT_PUBLIC_SUPABASE_URL,
     SUPABASE_SERVICE_ROLE_KEY,
     {
-      // Servis anahtarı bir kullanıcıyı temsil etmez; oturum çerezi tutmaz.
       cookies: { getAll: () => [], setAll: () => {} },
       auth: { persistSession: false, autoRefreshToken: false },
     },

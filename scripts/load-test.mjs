@@ -1,20 +1,9 @@
 #!/usr/bin/env node
-// =============================================================================
-// Yük testi — "yoğun servis" simülasyonu (Faz 7)
-// =============================================================================
-// Gerçek bir cuma akşamını taklit eder: WAITERS sanal garson, aynı anda farklı
-// masalarda adisyon açar, ürün ekler, mutfağa gönderir, öder. Bunu Next.js
-// katmanını atlayıp doğrudan PostgREST'e (supabase-js + anon key, oturum açmış
-// kullanıcı olarak) karşı çalıştırıyoruz — çünkü Next.js sunucusu durumsuz ve
-// yatay ölçeklenir, gerçek darboğaz her zaman veritabanı/RLS katmanıdır.
+// Yük testi: WAITERS sanal garson aynı anda adisyon açar, ürün ekler, mutfağa
+// gönderir ve öder. Darboğaz veritabanı/RLS olduğu için doğrudan PostgREST'e
+// karşı çalışır. Kendi geçici kiracısını oluşturur ve sonunda siler.
 //
-// Test kendi tek kullanımlık kiracısını (tenant) yaratır, sonunda siler
-// (tenant_id → cascade). Bu yüzden pgTAP testlerini kirleten "paylaşımlı canlı
-// DB" sorunundan etkilenmez.
-//
-// Kullanım:
-//   node scripts/load-test.mjs [--waiters=15] [--rounds=4] [--lines=3]
-// =============================================================================
+// Kullanım: node scripts/load-test.mjs [--waiters=15] [--rounds=4] [--lines=3]
 
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
@@ -181,8 +170,7 @@ async function runTableRound(client, ctx, tableId) {
       .single(),
   );
   if (orderError) {
-    // order_no ataması (max+1) yarış altında çakışabilir — bu, testin
-    // bulmaya çalıştığı gerçek eşzamanlılık davranışı; çöktürmek yerine sayıyoruz.
+    // order_no yarışında çakışma olabilir; test bunu sayar.
     if (orderError.code === "23505") orderNoRaces++;
     throw orderError;
   }
@@ -294,8 +282,6 @@ async function main() {
   await Promise.all(waiterTasks);
   const wallMs = performance.now() - start;
 
-  // Idempotency-altında-yarış: yeni bir adisyon açıp aynı satırı iki kez
-  // eşzamanlı denemeyi kanıtla.
   const { data: raceOrder, error: raceOrderError } = await client
     .from("orders")
     .insert({ tenant_id: ctx.tenant.id, branch_id: ctx.branch.id, client_key: randomUUID() })

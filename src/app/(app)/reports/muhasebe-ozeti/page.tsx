@@ -23,12 +23,7 @@ function isoDaysAgo(days: number): string {
   return new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
 }
 
-/**
- * Muhasebeciye WhatsApp/mailden gönderilecek dönemlik ciro dökümü —
- * ödeme yöntemi bazında, gün gün. Aynı export mantığı `/api/export/muhasebe-ozeti`'nde;
- * o rotanın doc-comment'i "neden KDV kırılımı yok / neden Logo/Mikro/Luca
- * uyumlu demiyoruz" gerekçesini açıklıyor.
- */
+/** Ödeme yöntemi bazında dönemlik ciro dökümü (indirme için bkz. /api/export/muhasebe-ozeti). */
 export default async function AccountingSummaryPage({
   searchParams,
 }: {

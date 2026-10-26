@@ -1,19 +1,8 @@
 /**
- * Reçete ağacı ve maliyet hesabı.
- *
- * Bir menü ürününün gerçek maliyeti, hammaddelerinin ve yarı mamullerinin
- * ağacını sonuna kadar açmakla bulunur. "Margarita pizza" → hamur (yarı mamul)
- * + mozzarella + sos (yarı mamul) → sos da domates + zeytinyağı + tuz...
- *
- * Hesap sadece bir sayı değil, bir DÖKÜM döndürür. Sebebi: patron "bu pizza neden
- * 40 lira maliyetli?" diye sorduğunda cevabın "peynir %60'ını yiyor" olması gerekiyor.
- * Tek sayı veren sistemler bu soruya cevap veremiyor.
- *
- * Para birimi notu: buradaki tüm tutarlar ondalık TL (`number`). Ara değerler
- * çok küçük olabildiği için `Money`'ye yuvarlanmıyor — bkz. `money.ts` başındaki
- * açıklama. Yuvarlama yalnızca gösterim ve kayıt anında yapılır.
+ * Reçete ağacı ve maliyet hesabı. Yarı mamuller sonuna kadar açılır ve sonuç
+ * tek bir sayı değil, satır satır bir döküm olarak döner. Tutarlar ondalık TL'dir;
+ * ara değerler `Money`'ye yuvarlanmaz (bkz. money.ts).
  */
-
 import { convert, type UnitCode, type UnitConversion } from "./units";
 
 /** Ağaç bu derinliği aşarsa tanımda bir sorun var demektir. */
@@ -45,14 +34,8 @@ export type RecipeLine = {
   readonly quantity: number;
   readonly unit: UnitCode;
   /**
-   * Fire yüzdesi (0–100). Reçetedeki miktar TEMİZLENMİŞ/KULLANILABİLİR miktardır;
-   * fire, ona ulaşmak için ne kadar ham malzeme gerektiğini belirler.
-   *
-   * Örnek: 100 g doğranmış soğan, %20 fire → 100 ÷ 0,8 = 125 g ham soğan almalısın.
-   *
-   * DİKKAT: yaygın hata `100 × 1,20 = 120` hesabıdır. Yanlıştır ve maliyeti
-   * sistematik olarak olduğundan düşük gösterir. Fire arttıkça sapma büyür:
-   * %50 fire'de doğru cevap 200, yanlış cevap 150'dir.
+   * Fire yüzdesi (0–100). Reçetedeki miktar temizlenmiş miktardır; ham miktar
+   * `miktar ÷ (1 − fire)` ile bulunur (%20 fire'de 100 g → 125 g, 120 g değil).
    */
   readonly wastePercent?: number;
 };
@@ -108,12 +91,7 @@ function indexById<T extends { id: string }>(items: readonly T[]): Map<string, T
   return map;
 }
 
-/**
- * Fire uygulanmış gerçek miktar.
- *
- * `kullanılabilir ÷ (1 − fire)` — yani "elime bu kadar temiz ürün geçmesi için
- * ne kadar ham ürün harcamalıyım?" sorusunun cevabı.
- */
+/** Fire uygulanmış ham miktar: `kullanılabilir ÷ (1 − fire)`. */
 export function applyWaste(quantity: number, wastePercent = 0): number {
   if (!Number.isFinite(wastePercent) || wastePercent < 0 || wastePercent >= 100) {
     throw new RecipeError(
@@ -129,8 +107,6 @@ function costOfIngredientLine(
 ): { effectiveQuantity: number; cost: number } {
   const effectiveQuantity = applyWaste(line.quantity, line.wastePercent);
 
-  // Reçetedeki birimi, malzemenin fiyatlandığı birime çeviriyoruz.
-  // Çevrilemiyorsa hata veriyoruz — tahmin yürütmek yanlış maliyet demek.
   const quantityInCostUnit = convert(
     effectiveQuantity,
     line.unit,
@@ -189,8 +165,7 @@ function build(
     const breakdown = build(line.ref.id, recipes, ingredients, nextAncestry);
     const effectiveQuantity = applyWaste(line.quantity, line.wastePercent);
 
-    // Alt reçetenin birim maliyeti kendi çıktı biriminde tanımlı; istenen
-    // miktarı o birime çeviriyoruz (ör. sos reçetesi lt üretiyor, pizza ml istiyor).
+    // Alt reçetenin maliyeti kendi çıktı birimindedir (sos lt üretir, pizza ml ister).
     const quantityInYieldUnit = convert(
       effectiveQuantity,
       line.unit,
@@ -240,12 +215,7 @@ export function costOfRecipe(recipeId: string, catalog: Catalog): CostBreakdown 
   );
 }
 
-/**
- * Food cost oranı: maliyetin satış fiyatına bölümü (0–1).
- *
- * Sektörde tipik hedef %25–35'tir. Bunun üstü ya fiyatın düşük ya porsiyonun
- * cömert ya da tedarik maliyetinin kaçmış olduğunu söyler.
- */
+/** Food cost oranı: maliyet ÷ satış fiyatı (0–1). */
 export function foodCostRatio(cost: number, sellingPriceLira: number): number {
   if (!Number.isFinite(sellingPriceLira) || sellingPriceLira <= 0) {
     throw new RecipeError(
@@ -269,13 +239,9 @@ export function priceForTargetFoodCost(
 }
 
 /**
- * Ağacı düzleştirip hammadde bazında toplam tüketimi verir.
- *
- * Stok düşümü (Faz 3) bunu kullanacak: bir pizza satıldığında hangi hammaddeden
- * kaç birim düşüleceği buradan çıkıyor. Aynı hammadde ağacın farklı dallarında
- * geçiyorsa (sosta da, üstünde de zeytinyağı) miktarlar toplanır.
- */
-export function explodeToIngredients(
+ * Ağacı düzleştirip hammadde bazında toplam tüketimi verir; stok düşümü bunu
+ * kullanır. Aynı hammadde farklı dallarda geçiyorsa miktarlar toplanır.
+ */export function explodeToIngredients(
   recipeId: string,
   catalog: Catalog,
   outputQuantity?: number,
@@ -311,8 +277,7 @@ export function explodeToIngredients(
 
         const existing = totals.get(ingredient.id);
         if (existing) {
-          // Farklı dallarda farklı birim kullanılmış olabilir; ilk görülen
-          // birime çeviriyoruz ki toplam anlamlı olsun.
+          // Dallar farklı birim kullanabilir; toplam ilk görülen birimde tutulur.
           existing.quantity += convert(
             effective,
             line.unit,
@@ -332,8 +297,7 @@ export function explodeToIngredients(
       const sub = recipes.get(line.ref.id);
       if (!sub) throw new RecipeError(`Reçete bulunamadı: ${line.ref.id}.`);
 
-      // Alt reçeteden ne kadar çıktı istendiğini, onun kendi çıktı biriminde
-      // hesaplayıp "kaç kez uygulanmalı" katsayısına çeviriyoruz.
+      // İstenen miktar alt reçetenin kaç kez uygulanacağına çevrilir.
       const neededInYieldUnit = convert(effective, line.unit, sub.yieldUnit);
       walk(sub.id, neededInYieldUnit / sub.yieldQuantity, nextAncestry);
     }

@@ -30,11 +30,7 @@ const timeFormatter = new Intl.DateTimeFormat("tr-TR", {
 });
 const DAY_LABELS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 
-/**
- * "Kim ne zaman çalışacak" planı — `cash_sessions`daki kasa vardiyasıyla
- * KARIŞTIRILMAMALI (bkz. migration 0018'in doc-comment'i). Burada yalnızca
- * bir çizelge var, para hareketi yok.
- */
+/** Personel vardiya çizelgesi; kasa oturumlarından (`cash_sessions`) ayrıdır, para hareketi yoktur. */
 export default async function ShiftsSettingsPage({
   searchParams,
 }: {

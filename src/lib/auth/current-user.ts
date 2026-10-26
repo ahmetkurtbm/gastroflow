@@ -2,19 +2,12 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 
-import { parseAppClaims, type AppClaims } from "./access";
+import { canAccessPath, parseAppClaims, type AppClaims } from "./access";
 
 /**
- * Oturumdaki kullanıcının uygulama kimliği (tenant + şube + rol).
- *
- * `getClaims()` token'ı imzasıyla doğrular. `getSession()` kullanmıyoruz:
- * o, çerezdeki veriyi doğrulamadan okur ve sahte oturuma kanabilir.
- *
- * `null` dönmesinin iki sebebi olabilir:
- *   1. Kullanıcı giriş yapmamış.
- *   2. Giriş yapmış ama aktif bir üyeliği yok (claim yazılmamış) — yeni davet
- *      edilip henüz işletmeye bağlanmamış personel bu durumda.
- * İkisini ayırmak için `getAuthUserId()` kullan.
+ * Oturumdaki kullanıcının kiracı, şube ve rolü. `getClaims()` token'ı imzasıyla
+ * doğrular. Giriş yoksa ya da aktif üyelik yoksa `null` döner; ikisini ayırmak
+ * için `getAuthUserId()` kullanılır.
  */
 export async function getAppUser(): Promise<AppClaims | null> {
   const supabase = await createClient();
@@ -22,7 +15,7 @@ export async function getAppUser(): Promise<AppClaims | null> {
   return parseAppClaims(data?.claims);
 }
 
-/** Oturum var mı? (Üyeliği olmasa bile.) */
+/** Oturum var mı (üyelik olmasa bile)? */
 export async function getAuthUserId(): Promise<string | null> {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
@@ -30,14 +23,15 @@ export async function getAuthUserId(): Promise<string | null> {
   return typeof sub === "string" ? sub : null;
 }
 
-/**
- * Korumalı sayfalarda kullan. Kimlik yoksa girişe yollar.
- *
- * Not: `proxy.ts` zaten aynı kontrolü yapıyor. Bu ikinci kontrol bilinçli —
- * proxy'nin matcher'ından düşen bir rota olursa sayfa savunmasız kalmasın.
- */
+/** Kimlik yoksa girişe yönlendirir; proxy matcher'ından kaçan rotalar için ikinci kontrol. */
 export async function requireAppUser(): Promise<AppClaims> {
   const user = await getAppUser();
   if (!user) redirect("/login");
   return user;
+}
+
+/** Kullanıcı verilen ekrana erişebiliyorsa döndürür, erişemiyorsa `null`. */
+export async function requirePathAccess(path: string): Promise<AppClaims | null> {
+  const user = await requireAppUser();
+  return canAccessPath(user.role, path) ? user : null;
 }

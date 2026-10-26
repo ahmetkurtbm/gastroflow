@@ -1,11 +1,4 @@
-/**
- * Minimal IndexedDB yardımcıları.
- *
- * Bağımlılık eklemek yerine (idb gibi ~1kb'lık sarmalayıcılar bile yeni bir
- * tedarik zinciri yüzeyi demek) düz `indexedDB` API'sini birkaç fonksiyonla
- * Promise'e çeviriyoruz. Tek bir object store var, ihtiyaç bunun ötesine
- * geçmiyor.
- */
+// Ek bağımlılık olmadan, tek object store'lu küçük IndexedDB yardımcıları.
 
 const DB_NAME = "gastroflow-offline";
 const DB_VERSION = 1;
@@ -39,8 +32,6 @@ export async function withStore<T>(
   mode: IDBTransactionMode,
   fn: (store: IDBObjectStore) => IDBRequest<T> | void,
 ): Promise<T | void> {
-  // SSR sırasında `indexedDB` yok; çağıranlar yalnızca tarayıcıda kullanmalı,
-  // ama savunmasız bırakmamak için burada da kontrol ediyoruz.
   if (typeof indexedDB === "undefined") {
     throw new Error("IndexedDB yalnızca tarayıcıda kullanılabilir.");
   }

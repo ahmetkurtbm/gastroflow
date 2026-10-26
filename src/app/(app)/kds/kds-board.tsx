@@ -46,11 +46,7 @@ const COLUMNS: {
   { status: "ready", title: "Hazır", actionLabel: "Teslim edildi" },
 ];
 
-/**
- * Geçen süreye göre ton: yeşil → amber → kırmızı.
- * Mutfağın "bu ne kadar bekledi?" sorusunu okumak için rakama bakmasına
- * gerek kalmasın — renk yeterli olsun.
- */
+/** Geçen süreye göre ton: yeşil → amber → kırmızı. */
 function urgencyClass(minutes: number): string {
   if (minutes < 5) return "border-line";
   if (minutes < 10) return "border-warn/60 bg-warn/5";
@@ -126,14 +122,8 @@ export function KdsBoard({
   const [tickets, setTickets] = useState(initialTickets);
   const [supabase] = useState(() => createClient());
 
-  // Event handler'ın (yalnızca bir kez, effect mount'unda) o ANDAKİ listeye
-  // erişmesi gerekiyor — state'in kendisi closure'a hapsolmasın diye ref'te
-  // aynala. Yoğun serviste dakikada onlarca durum değişimi oluyor (sent →
-  // preparing → ready → served); her birinde TÜM açık biletleri yeniden
-  // çekmek (eski davranış) gereksiz sorgu yükü demekti. Artık yalnızca:
-  //   - Durum değişimi (mevcut bilet elimizde) → yerel state'i yama, sorgu YOK.
-  //   - Gerçekten yeni bir bilet (INSERT ya da elimizde hiç yoksa) → yalnızca
-  //     O SATIRI join'li halinde tek satır sorgusuyla al, tüm listeyi değil.
+  // Olay işleyici güncel listeye ref üzerinden erişir. Durum değişiminde yerel
+  // state yamalanır; yalnızca yeni bilet için tek satır sorgulanır.
   const ticketsRef = useRef(tickets);
   useEffect(() => {
     ticketsRef.current = tickets;
@@ -151,9 +141,7 @@ export function KdsBoard({
       return data ? mapTicketRow(data) : null;
     }
 
-    // Realtime, RLS'ten geçer: bu kanal başka bir işletmenin verisini asla
-    // taşımaz. tenant_id filtresi burada bir güvenlik sınırı değil, gereksiz
-    // olay trafiğini azaltmak için — asıl sınır RLS.
+    // Asıl sınır RLS; tenant_id filtresi yalnızca olay trafiğini azaltır.
     const channel = supabase
       .channel("kds-order-lines")
       .on(
@@ -174,14 +162,11 @@ export function KdsBoard({
           const row = payload.new as { id: string; status: string };
 
           if (!KDS_STATUSES.includes(row.status as KitchenTicket["status"])) {
-            // served/cancelled/pending'e döndü — KDS'den düşer.
             setTickets((prev) => prev.filter((t) => t.id !== row.id));
             return;
           }
 
           if (ticketsRef.current.some((t) => t.id === row.id)) {
-            // Yalnızca durum değişti — ürün adı/masa gibi join'li alanlar
-            // değişmez, sorgu atmadan yerinde güncelle.
             setTickets((prev) =>
               prev.map((t) =>
                 t.id === row.id ? { ...t, status: row.status as KitchenTicket["status"] } : t,
@@ -190,7 +175,6 @@ export function KdsBoard({
             return;
           }
 
-          // Gerçekten yeni bir bilet — tek satırı join'li çek, listeye ekle.
           void fetchTicket(row.id).then((ticket) => {
             if (!ticket) return;
             setTickets((prev) =>

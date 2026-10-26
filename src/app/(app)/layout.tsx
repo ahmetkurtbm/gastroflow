@@ -27,13 +27,7 @@ const NAV_KEY_BY_HREF: Record<string, keyof Dictionary["nav"]> = {
   "/settings": "settings",
 };
 
-/**
- * Oturum açmış kullanıcıların kabuğu.
- *
- * Buradaki sorgular aynı zamanda canlı bir RLS kanıtı: `tenants` tablosundan
- * filtresiz `select` çekiyoruz ve tek satır dönüyor — çünkü politika zaten
- * kullanıcının kendi işletmesinden başkasını göstermiyor.
- */
+/** Oturum açmış kullanıcıların kabuğu. */
 export default async function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -61,9 +55,7 @@ export default async function AppLayout({
   return (
     <I18nProvider locale={locale} dict={dict}>
       <div className="flex min-h-full flex-col md:flex-row">
-        {/* Mobil üst çubuk: hamburger → kayar menü. Kenar çubuğunun dikey
-            listesi telefonda kullanılamıyordu (yatay kaydırmalı şerite
-            dönüşüyordu) — artık masaüstüyle birebir aynı gezinme deseni. */}
+        {/* Mobil üst çubuk ve açılır menü. */}
         <div className="flex items-center justify-between border-b border-line bg-surface-raised px-3 py-2.5 md:hidden">
           <div className="flex min-w-0 items-center gap-2">
             <MobileNavDrawer

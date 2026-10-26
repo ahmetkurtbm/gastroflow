@@ -59,22 +59,21 @@ export async function updateNotificationRule(
   return { ok: true };
 }
 
-/**
- * Bildirim kuyruğunu şimdi işler — `process-notifications` Edge Function'ını
- * çağırır. Normalde bu bir zamanlayıcı (ör. pg_cron + pg_net) ya da harici
- * bir cron tarafından tetiklenir; bu buton, o altyapı olmadan akışı canlı
- * göstermek/denemek için var.
- */
+/** Bildirim kuyruğunu elle işletir (yalnızca patron). Kuyruk tüm kiracıları kapsar. */
 export async function processNotificationQueue(): Promise<ActionState> {
   try {
-    await requireAppUser();
+    const user = await requireAppUser();
+    if (user.role !== "owner") return { error: "Bu işlemi yapma yetkin yok." };
     const supabase = createServiceRoleClient();
 
     const { data, error } = await supabase.functions.invoke("process-notifications", {
       method: "POST",
     });
 
-    if (error) return { error: error.message };
+    if (error) {
+      console.error("Bildirim kuyruğu işlenemedi:", error);
+      return { error: "Bildirim kuyruğu işlenemedi." };
+    }
 
     revalidatePath("/settings", "layout");
     return { ok: true, processed: data?.processed ?? 0 };

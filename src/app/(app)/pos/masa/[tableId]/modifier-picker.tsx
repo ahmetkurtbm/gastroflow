@@ -5,13 +5,8 @@ import { useState } from "react";
 import type { MenuModifierGroup } from "@/lib/orders/types";
 
 /**
- * Modifier seçim paneli.
- *
- * Tek grup + tek zorunlu seçim (min=max=1) radio, birden fazla seçime izin
- * veren gruplar checkbox. Zorunlu bir grupta seçim yapılmadan "Ekle"
- * çalışmaz — sunucu tarafında bu kural ZORLANMIYOR (bilinçli: modifier
- * seçimi menü tasarımı, güvenlik sınırı değil; RLS zaten hangi kullanıcının
- * hangi tabloya yazabileceğini koruyor).
+ * Modifier seçim paneli: tek zorunlu seçimli grup radio, diğerleri checkbox.
+ * Zorunlu ve en fazla seçim kuralları sunucuda da doğrulanır.
  */
 export function ModifierPicker({
   itemName,
@@ -34,8 +29,7 @@ export function ModifierPicker({
     setSelected((prev) => {
       const current = prev[group.id] ?? [];
       if (group.maxSelect === 1) {
-        // Radio davranışı: aynı seçime tekrar tıklayınca kaldırılabilsin
-        // (grup opsiyonelse), değilse başka seçime geçilsin.
+        // Opsiyonel gruptaki seçime tekrar tıklamak onu kaldırır.
         const next = current[0] === modifierId ? [] : [modifierId];
         return { ...prev, [group.id]: next };
       }

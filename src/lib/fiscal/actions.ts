@@ -21,7 +21,7 @@ const importReceiptRowSchema = z.object({
   amount: z.coerce.number().positive(),
 });
 
-/** Excel hücresindeki tarihi "YYYY-MM-DD"ye çevirir — hem metin hem Excel'in kendi tarih nesnesi gelebilir. */
+/** Excel hücresindeki tarihi (metin ya da tarih nesnesi) "YYYY-MM-DD"ye çevirir. */
 function normalizeDateCell(raw: string): string {
   if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
   const parsed = new Date(raw);
@@ -30,13 +30,8 @@ function normalizeDateCell(raw: string): string {
 }
 
 /**
- * Yazarkasa fişlerini Excel'den toplu içe aktarır (bkz. `/api/export/fis-sablonu`,
- * `loadReconciliation`).
- *
- * Diğer içe aktarmaların aksine burada "eşleşirse güncelle" YOK — her satır
- * yeni bir fiş kaydı. Aynı dosyayı yanlışlıkla iki kez yüklemeye karşı tek
- * koruma: aynı (tarih, fiş no, tutar) üçlüsü zaten varsa o satır atlanır
- * (fiş no boşsa bu kontrol devre dışı — ayırt edici bir alan yok).
+ * Yazarkasa fişlerini Excel'den içe aktarır. Her satır yeni bir fiştir; aynı
+ * (tarih, fiş no, tutar) zaten varsa satır atlanır.
  */
 export async function importFiscalReceipts(
   _previous: ImportResult,
@@ -48,10 +43,10 @@ export async function importFiscalReceipts(
       return { error: "Bir dosya seç." };
     }
 
+    const user = await requireAppUser();
     const rows = await parseWorkbookRows(file);
     if (rows.length === 0) return { error: "Dosyada satır bulunamadı." };
 
-    const user = await requireAppUser();
     if (!user.branchId) return { error: "Şube ataması olmayan kullanıcı fiş giremez." };
     const supabase = await createClient();
 

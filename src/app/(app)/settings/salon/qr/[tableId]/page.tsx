@@ -9,13 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Masa QR Kodu" };
 
-/**
- * Bir masanın QR sipariş kodunu büyük gösterip yazdırmaya hazırlar.
- *
- * `x-forwarded-host`'u tercih ediyoruz: uygulama bir ters proxy'nin (Vercel,
- * nginx) arkasındaysa `host` başlığı iç ağdaki adresi taşıyabilir — müşteri
- * telefonundan taranacak URL'in DIŞARIDAN erişilebilir adres olması gerekiyor.
- */
+/** Masanın QR sipariş kodunu yazdırılabilir gösterir; adres proxy'nin dış host'undan kurulur. */
 export default async function TableQrPage({
   params,
 }: {

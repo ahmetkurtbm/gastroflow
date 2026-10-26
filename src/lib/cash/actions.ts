@@ -31,12 +31,8 @@ const paymentSchema = z.object({
 });
 
 /**
- * Bir adisyonu fiilen kapatır: durumu günceller, sonra stok düşümü/ÖKC
- * fişi/sadakat puanı gibi YAN ETKİLERİ best-effort dener. `recordPayment`
- * (kasiyer "ödeme sonrası kapat"ı işaretlediyse) ve `closeOrder` (masa
- * önceden ödenmiş, müşteri kalkınca elle kapatılıyor) İKİSİ de bunu çağırır
- * — kapanış NASIL tetiklendiyse tetiklensin aynı tamamlama mantığı çalışsın
- * diye tek yerde.
+ * Adisyonu kapatır, ardından stok düşümü, ÖKC fişi ve sadakat puanını
+ * best-effort dener. `recordPayment` ve `closeOrder` ikisi de bunu kullanır.
  */
 async function finalizeOrderClose(params: {
   orderId: string;
@@ -56,10 +52,8 @@ async function finalizeOrderClose(params: {
     .eq("status", "open");
   if (closeError) return; // Zaten kapalıysa (yarış) sessizce çık — idempotent.
 
-  // Üçü de best-effort YAN ETKİ: biri başarısız olsa bile adisyon zaten
-  // kapandı, kasiyeriyi/müşteriyi burada bekletmiyoruz, yalnızca günlüğe
-  // düşüyor. `depleteOrderStock`'un kendi idempotency kısıtı (bkz. migration
-  // 0010) aynı adisyonun iki kez kapanmaya çalışmasını da güvenli kılıyor.
+  // Yan etkiler best-effort: adisyon zaten kapandı, hatalar yalnızca loglanır.
+  // Stok düşümünün idempotency kısıtı çift kapanışa karşı korur.
   try {
     await depleteOrderStock(orderId);
   } catch (depletionError) {
@@ -80,17 +74,8 @@ async function finalizeOrderClose(params: {
 }
 
 /**
- * Ödeme kaydeder.
- *
- * ESKİDEN toplam ödenen tutar adisyon tutarına ulaşınca adisyon OTOMATİK
- * kapanıyordu — bu, "masaya önden öde, sonra da otur/sipariş vermeye devam
- * et" modelini kırıyordu: adisyon kapanınca masa "boş" görünüyor, aslında
- * müşteri hâlâ oturuyor. Şimdi varsayılan davranış kapatmamak; kasiyer
- * müşteri gerçekten kalkınca `closeOrder`'ı ayrıca çağırıyor. Klasik
- * "masa sonda öder" akışı için kolaylık kaybolmasın diye kasiyer ödeme
- * formunda "Ödeme sonrası masayı kapat"ı işaretleyebiliyor —
- * `closeAfterPayment` o zaman "true" geliyor ve eski davranış (tam ödenince
- * anında kapanış) opt-in olarak çalışıyor.
+ * Ödeme kaydeder. Varsayılan olarak adisyonu kapatmaz (önden ödeyip oturmaya
+ * devam eden masa için); `closeAfterPayment` işaretliyse tam ödenince kapatır.
  */
 export async function recordPayment(
   _previous: ActionState,
@@ -117,9 +102,7 @@ export async function recordPayment(
       return { error: "Bu adisyon artık açık değil." };
     }
 
-    // Her ödeme açık bir kasa oturumuna bağlanmak ZORUNDA — aksi hâlde gün
-    // sonu kapanışında "bu vardiyada ne kadar nakit girdi" sorusunun cevabı
-    // zaman aralığı tahminine kalırdı (bkz. migration 0012).
+    // Her ödeme açık bir kasa oturumuna bağlanır; gün sonu nakit hesabı buna dayanır.
     const { data: session } = await supabase
       .from("cash_sessions")
       .select("id")
@@ -167,15 +150,8 @@ export async function recordPayment(
 }
 
 /**
- * Bir adisyonu elle kapatır — iki durumda kullanılabilir: (1) tutar zaten
- * sıfır (tamamı ikram/kupon/puanla karşılanmış, `recordPayment`den hiç
- * geçemez çünkü `amount` sıfırdan büyük olmak zorunda), (2) tam ödenmiş ama
- * kasiyer "ödeme sonrası kapat"ı işaretlemediği için açık kalmış (masa
- * önceden ödenip müşteri hâlâ oturuyorken kullanılan asıl senaryo — müşteri
- * kalkınca kasiyer burada kapatır).
- *
- * İkisinde de kontrol AYNI: sunucunun kendi hesapladığı `remaining` sıfır
- * olmalı — kasiyerin "zaten ödendi" beyanına güvenilmiyor.
+ * Adisyonu elle kapatır: tutarı sıfır olan ya da tam ödenip açık kalan masa
+ * için. Kalan tutar sunucuda hesaplanır ve sıfır olmalıdır.
  */
 export async function closeOrder(formData: FormData): Promise<void> {
   const orderId = z.uuid().parse(formData.get("orderId"));
@@ -236,8 +212,6 @@ export async function openCashSession(
     });
 
     if (error) {
-      // 23505 = unique_violation → bu şubede zaten açık bir oturum var
-      // (bkz. `cash_sessions_one_open_per_branch`).
       if (error.code === "23505") {
         return { error: "Zaten açık bir kasa oturumu var." };
       }

@@ -4,18 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { currentPrices } from "@/core/pricing";
 import { requireAppUser } from "@/lib/auth/current-user";
 import { parseWorkbookRows, type ImportResult } from "@/lib/excel/workbook";
 import { createClient } from "@/lib/supabase/server";
 
-/**
- * Reçete ve hammadde yazma işlemleri.
- *
- * Yetki kontrolü burada TEKRARLANMIYOR: RLS politikaları `is_manager()`
- * kısıtını zaten uyguluyor. Buradaki `requireAppUser()` çağrısı yetki için
- * değil, `tenant_id`'yi almak için — o değeri kullanıcıdan gelen forma
- * asla güvenmeden, doğrulanmış oturumdan okuyoruz.
- */
+// Yetki sınırı RLS'tedir (`is_manager()`); `requireAppUser()` tenant_id'yi
+// formdan değil doğrulanmış oturumdan almak için çağrılır.
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -180,14 +175,9 @@ const importIngredientRowSchema = z.object({
 });
 
 /**
- * Hammadde listesini Excel'den toplu içe aktarır — indir → doldur/düzenle →
- * yükle deseninin "yükle" adımı (bkz. `/api/export/hammaddeler`).
- *
- * `(tenant_id, name)` eşleşirse GÜNCELLEME (yalnızca maliyet — `base_unit`
- * mevcut bir kalemde DEĞİŞTİRİLMİYOR, çünkü reçete satırları o birime göre
- * dönüşüm varsayıyor; birimi elden değiştirmek sessizce yanlış gramaja yol
- * açardı), eşleşmezse yeni kayıt. Tek tek insert/update — bu ölçekte
- * (yüzlerce satır) performans sorunu yaratmayacak kadar az veri.
+ * Hammaddeleri Excel'den içe aktarır. Adı eşleşen kalemin yalnızca maliyeti
+ * güncellenir; `base_unit` değiştirilmez çünkü reçete satırları o birime göre
+ * dönüşüm yapar.
  */
 export async function importIngredients(
   _previous: ImportResult,
@@ -199,10 +189,10 @@ export async function importIngredients(
       return { error: "Bir dosya seç." };
     }
 
+    const user = await requireAppUser();
     const rows = await parseWorkbookRows(file);
     if (rows.length === 0) return { error: "Dosyada satır bulunamadı." };
 
-    const user = await requireAppUser();
     const supabase = await createClient();
 
     const { data: existing } = await supabase
@@ -294,9 +284,7 @@ export async function createRecipe(
           return { error: "Menü ürünü seçin veya yeni bir ad girin." };
         }
 
-        // Kategori: varsa bul, yoksa oluştur. Kullanıcıyı ayrı bir ekrana
-        // göndermemek için — reçete girmek isteyen biri kategori yönetmek
-        // zorunda kalmamalı.
+        // Kategori yoksa burada oluşturulur.
         let categoryId: string | null = null;
         const categoryName = input.categoryName?.trim() || "Genel";
 
@@ -345,8 +333,7 @@ export async function createRecipe(
             menu_item_id: menuItemId,
             price: input.newMenuItemPrice,
           });
-          // Fiyat yazılamazsa (patron değilse) reçete yine de oluşsun;
-          // fiyatı sonra patron girer.
+          // Patron değilse fiyat yazılamaz; reçete yine de oluşur.
           if (priceError && priceError.code !== "42501") {
             return { error: priceError.message };
           }
@@ -442,8 +429,7 @@ export async function addRecipeLine(
       waste_percent: input.wastePercent,
     });
 
-    // Döngü ve dondurma korumaları veritabanından geliyor; mesajları
-    // olduğu gibi gösteriyoruz çünkü zaten Türkçe ve açıklayıcılar.
+    // Döngü ve dondurma kontrolleri veritabanındadır; mesajları zaten Türkçe.
     if (error) return { error: error.message };
   } catch (error) {
     return fail(error);
@@ -474,13 +460,7 @@ export async function publishVersion(formData: FormData) {
   revalidatePath("/recipes", "layout");
 }
 
-/**
- * Yayınlanmış bir reçeteyi düzenlemek için yeni taslak versiyon açar ve
- * mevcut satırları kopyalar.
- *
- * Aktif versiyon dondurulmuş olduğu için düzenlemenin tek yolu bu. Satırları
- * elle yeniden girmek zorunda bırakmamak için kopyalıyoruz.
- */
+/** Aktif (dondurulmuş) reçeteyi düzenlemek için satırlarıyla yeni bir taslak versiyon açar. */
 export async function createDraftVersion(formData: FormData) {
   const recipeId = z.uuid().parse(formData.get("recipeId"));
 
@@ -555,14 +535,21 @@ const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   "image/webp": "webp",
 };
 
+// MIME türü istemciden gelir; dosyanın gerçekten o biçimde olduğu imzasından doğrulanır.
+async function hasImageSignature(file: File, type: string): Promise<boolean> {
+  const b = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  if (type === "image/jpeg") return b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
+  if (type === "image/png") return b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47;
+  if (type === "image/webp") {
+    const text = String.fromCharCode(...b);
+    return text.startsWith("RIFF") && text.slice(8, 12) === "WEBP";
+  }
+  return false;
+}
+
 /**
- * Menü ürününe görsel yükler (POS ızgarası + QR menü ikisi de gösteriyor).
- *
- * Storage RLS zaten `is_manager()` istiyor (bkz. migration 0014) — buradaki
- * kontrol yetki için değil, RLS'in reddettiği bir yüklemeyi anlaşılır bir
- * hataya çevirmek için (aksi hâlde kullanıcı yalnızca "storage error" görür).
- * Yol `${tenantId}/${menuItemId}.${ext}` — `upsert: true` ile eski görseli
- * SESSİZCE değiştiriyor, ayrı bir "önce sil" adımına gerek yok.
+ * Menü ürününe görsel yükler. Yol `${tenantId}/${menuItemId}.${ext}`; aynı
+ * yola yükleme eski görselin üzerine yazar. Yetki sınırı storage RLS'tedir.
  */
 export async function uploadMenuItemImage(
   _previous: ActionState,
@@ -578,7 +565,7 @@ export async function uploadMenuItemImage(
       return { error: "Görsel 5 MB'tan büyük olamaz." };
     }
     const ext = ALLOWED_IMAGE_TYPES[file.type];
-    if (!ext) {
+    if (!ext || !(await hasImageSignature(file, file.type))) {
       return { error: "Yalnızca JPEG, PNG veya WEBP kabul edilir." };
     }
 
@@ -595,9 +582,7 @@ export async function uploadMenuItemImage(
     if (uploadError) return { error: uploadError.message };
 
     const { data: publicUrlData } = supabase.storage.from("menu-images").getPublicUrl(path);
-    // Aynı yola tekrar yüklense de public URL DEĞİŞMEZ (CDN önbelleği eski
-    // görseli gösterebilir) — sorgu string'ine zaman damgası ekleyerek
-    // önbelleği kırıyoruz.
+    // URL aynı kaldığı için CDN önbelleğini zaman damgasıyla kırıyoruz.
     const cacheBustedUrl = `${publicUrlData.publicUrl}?v=${Date.now()}`;
 
     const { error: updateError } = await supabase
@@ -614,7 +599,7 @@ export async function uploadMenuItemImage(
   return { ok: true };
 }
 
-/** Menü ürününün görselini kaldırır — dosyayı silmiyor, yalnızca bağlantıyı kesiyor. */
+/** Menü ürününün görsel bağlantısını kaldırır; dosya silinmez. */
 export async function removeMenuItemImage(formData: FormData) {
   const menuItemId = z.uuid().parse(formData.get("menuItemId"));
   const supabase = await createClient();
@@ -641,15 +626,9 @@ const importMenuItemRowSchema = z.object({
 });
 
 /**
- * Menü ürünlerini Excel'den toplu içe aktarır (bkz. `/api/export/menu-urunleri`).
- *
- * `(tenant_id, name)` eşleşirse mevcut ürün güncellenir (kategori), yoksa
- * yeni ürün açılır. Kategori adı sistemde yoksa OTOMATİK oluşturulur — ilk
- * kurulumda "önce kategorileri tek tek aç, sonra ürünleri" diye ayrı bir
- * adım istemiyoruz. Fiyat/KDV verilmişse ve MEVCUT genel fiyattan farklıysa
- * yeni bir `menu_prices` satırı eklenir (fiyat DONDURULUR, üzerine
- * yazılmaz) — `addOrderLine`'daki aynı prensip. Aynıysa tekrar satır
- * eklenmez, gereksiz fiyat geçmişi birikmesin.
+ * Menü ürünlerini Excel'den içe aktarır. Adı eşleşen ürünün kategorisi
+ * güncellenir, yoksa ürün açılır; eksik kategori otomatik oluşturulur. Fiyat
+ * mevcut genel fiyattan farklıysa yeni bir `menu_prices` satırı eklenir.
  */
 export async function importMenuItems(
   _previous: ImportResult,
@@ -661,10 +640,10 @@ export async function importMenuItems(
       return { error: "Bir dosya seç." };
     }
 
+    const user = await requireAppUser();
     const rows = await parseWorkbookRows(file);
     if (rows.length === 0) return { error: "Dosyada satır bulunamadı." };
 
-    const user = await requireAppUser();
     const supabase = await createClient();
 
     const [{ data: existingCategories }, { data: existingItems }, { data: existingPrices }] =
@@ -673,20 +652,16 @@ export async function importMenuItems(
         supabase.from("menu_items").select("id, name, category_id").eq("tenant_id", user.tenantId),
         supabase
           .from("menu_prices")
-          .select("menu_item_id, price, vat_rate, valid_from")
+          .select("menu_item_id, price, vat_rate, branch_id, valid_from")
           .eq("tenant_id", user.tenantId)
-          .is("branch_id", null)
-          .order("valid_from", { ascending: false }),
+          .is("branch_id", null),
       ]);
 
     const categoryIdByName = new Map((existingCategories ?? []).map((c) => [c.name.trim().toLowerCase(), c.id]));
     const itemByName = new Map((existingItems ?? []).map((i) => [i.name.trim().toLowerCase(), i]));
-    const latestPriceByItem = new Map<string, { price: number; vat: number }>();
-    for (const p of existingPrices ?? []) {
-      if (!latestPriceByItem.has(p.menu_item_id)) {
-        latestPriceByItem.set(p.menu_item_id, { price: Number(p.price), vat: Number(p.vat_rate) });
-      }
-    }
+    const latestPriceByItem = new Map(
+      [...currentPrices(existingPrices ?? [], null)].map(([id, p]) => [id, { price: p.price, vat: p.vatRate ?? 10 }]),
+    );
 
     let created = 0;
     let updated = 0;

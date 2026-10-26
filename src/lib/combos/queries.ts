@@ -1,3 +1,4 @@
+import { currentPrices } from "@/core/pricing";
 import { createClient } from "@/lib/supabase/server";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -57,66 +58,45 @@ export type SellableComboItem = {
   menuItemId: string;
   menuItemName: string;
   quantity: number;
-  /** Bu bileşenin normal (kombosuz) birim fiyatı — orantılı dağıtımın
-   * ağırlığı bunun üzerinden hesaplanır (bkz. `allocateProportional`). */
+  /** Bileşenin kombosuz birim fiyatı; orantılı dağıtımın ağırlığı. */
   unitPrice: number;
 };
 
 export type SellableCombo = {
   id: string;
   name: string;
-  /** Kombonun TOPLAM sabit fiyatı. */
   price: number;
   items: SellableComboItem[];
 };
 
 /**
- * POS'ta gösterilecek, satılabilir kombolar.
- *
- * Bir bileşenin şube için tanımlı fiyatı yoksa o kombo listeden ATLANIR —
- * `allocateProportional`'ın orantı hesaplayabilmesi için her bileşenin bir
- * ağırlığı (normal fiyatı) olmalı; fiyatsız bir bileşen sessizce 0 TL'ye
- * "kombo bedava" gibi davranırdı, bu yanıltıcı olurdu.
- *
- * `client`/`tenantId` opsiyonel — bkz. `loadSellableMenu`'daki aynı desenin
- * gerekçesi: QR self-servis ekranı bunu oturumsuz `createServiceRoleClient()`
- * (RLS bypass) ile çağırır; o durumda `tenantId` fiilen zorunludur, aksi
- * hâlde tüm kiracıların kombolari karışır.
+ * POS'ta gösterilecek satılabilir kombolar. Bileşenlerinden biri satışta
+ * değilse ya da fiyatı yoksa kombo listelenmez; aksi hâlde orantılı fiyat
+ * dağıtımı yapılamaz. `scope` QR ekranının servis istemcisi içindir.
  */
 export async function loadSellableCombos(
   branchId: string,
-  client?: SupabaseClient,
-  tenantId?: string,
+  scope?: { client: SupabaseClient; tenantId: string },
 ): Promise<SellableCombo[]> {
-  const supabase = client ?? (await createClient());
+  const supabase = scope?.client ?? (await createClient());
 
   let combosQuery = supabase
     .from("combos")
-    .select("id, name, price, combo_items(menu_item_id, quantity, menu_items(name))")
+    .select("id, name, price, combo_items(menu_item_id, quantity, menu_items(name, is_active))")
     .eq("is_active", true);
   let pricesQuery = supabase
     .from("menu_prices")
     .select("menu_item_id, price, branch_id, valid_from")
     .or(`branch_id.eq.${branchId},branch_id.is.null`);
 
-  if (tenantId) {
-    combosQuery = combosQuery.eq("tenant_id", tenantId);
-    pricesQuery = pricesQuery.eq("tenant_id", tenantId);
+  if (scope) {
+    combosQuery = combosQuery.eq("tenant_id", scope.tenantId);
+    pricesQuery = pricesQuery.eq("tenant_id", scope.tenantId);
   }
 
-  const [combosResult, pricesResult] = await Promise.all([
-    combosQuery.order("name"),
-    pricesQuery.order("valid_from", { ascending: false }),
-  ]);
+  const [combosResult, pricesResult] = await Promise.all([combosQuery.order("name"), pricesQuery]);
 
-  const priceByItem = new Map<string, number>();
-  for (const row of pricesResult.data ?? []) {
-    if (row.branch_id === branchId) {
-      priceByItem.set(row.menu_item_id, toNumber(row.price));
-    } else if (!priceByItem.has(row.menu_item_id)) {
-      priceByItem.set(row.menu_item_id, toNumber(row.price));
-    }
-  }
+  const priceByItem = currentPrices(pricesResult.data ?? [], branchId);
 
   const combos: SellableCombo[] = [];
   for (const combo of combosResult.data ?? []) {
@@ -126,8 +106,8 @@ export async function loadSellableCombos(
     const items: SellableComboItem[] = [];
     let allPriced = true;
     for (const item of rawItems) {
-      const unitPrice = priceByItem.get(item.menu_item_id);
-      if (unitPrice === undefined) {
+      const unitPrice = priceByItem.get(item.menu_item_id)?.price;
+      if (unitPrice === undefined || !item.menu_items?.is_active) {
         allPriced = false;
         break;
       }

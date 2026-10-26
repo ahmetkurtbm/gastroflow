@@ -1,16 +1,8 @@
 import { z } from "zod";
 
 /**
- * Rol ve yol erişim kuralları.
- *
- * Bu dosya saf mantıktır — veritabanı, çerez, Next.js bilmez. Sebebi: erişim
- * kurallarını DB olmadan test edebilmek. Ama unutma:
- *
- *   BURASI GÜVENLİĞİN KENDİSİ DEĞİL, SADECE KULLANICI DENEYİMİDİR.
- *
- * Gerçek koruma veritabanındaki RLS politikalarıdır. Buradaki kontrol yalnızca
- * kullanıcıyı göremeyeceği bir ekrana boşuna götürmemek içindir. Bir rolü buradan
- * eklemek, ona veri erişimi VERMEZ; RLS politikası yazılmadıkça hiçbir satır gelmez.
+ * Rol ve yol erişim kuralları. Bu kontrol kullanıcı deneyimi içindir; veri
+ * erişimini RLS belirler, buraya rol eklemek erişim vermez.
  */
 
 export const APP_ROLES = [
@@ -25,11 +17,7 @@ export const APP_ROLES = [
 
 export type AppRole = (typeof APP_ROLES)[number];
 
-/** Oturum gerektirmeyen yollar. */
-// "/siparis" → QR ile açılan müşteri sipariş ekranı (bkz. `src/app/siparis`).
-// Bilerek herkese açık: masadaki müşterinin personel hesabı yok, olmamalı da.
-// Sayfanın kendi güvenlik sınırı `qr_token`'ın tahmin edilemezliği — bkz.
-// `src/lib/qr-order/actions.ts` doc-comment'i.
+/** Oturum gerektirmeyen yollar. `/siparis` QR müşteri ekranıdır; sınırı `qr_token`. */
 const PUBLIC_PATHS = ["/", "/login", "/auth", "/siparis"] as const;
 
 /** Her rolün giriş sonrası düşeceği ekran. */
@@ -43,10 +31,7 @@ export const ROLE_HOME: Record<AppRole, string> = {
   accountant: "/reports",
 };
 
-/**
- * Yol öneki → o yola girebilen roller.
- * Burada listelenmeyen bir önek hiçbir role açık değildir (deny-by-default).
- */
+/** Yol öneki → erişebilen roller. Listede olmayan yol kapalıdır. */
 const PATH_ACCESS: Record<string, readonly AppRole[]> = {
   "/pos": ["waiter", "cashier", "manager", "owner"],
   "/orders": ["waiter", "cashier", "chef", "manager", "owner"],
@@ -60,20 +45,11 @@ const PATH_ACCESS: Record<string, readonly AppRole[]> = {
   "/audit": ["owner"],
   "/m": ["manager", "owner"],
   "/settings": ["owner"],
-  // Excel dışa aktarım uç noktaları (/recipes, /reports vb. ekranlardan
-  // indirilen dosyalar) — sayfa erişimi zaten oradaki PATH_ACCESS'ten
-  // geçiyor, burada TÜM rollere açık olması "tanımsız yol = kapalı yol"
-  // varsayılanının bu isteği sessizce yönlendirmesini engellemek için.
+  // Dışa aktarım uçlarında rol kontrolü her route'un kendisindedir.
   "/api/export": ["waiter", "cashier", "chef", "manager", "owner", "storekeeper", "accountant"],
 };
 
-/**
- * Kenar çubuğu menüsü.
- *
- * Rolleri burada TEKRAR tanımlamıyoruz; `navFor()` her bağlantıyı
- * `canAccessPath` ile süzer. Böylece menüde göründüğü hâlde açılmayan
- * (ya da tersi) bir bağlantı olması yapısal olarak imkânsız.
- */
+/** Kenar çubuğu menüsü; her bağlantı `canAccessPath` ile süzülür. */
 export const NAV_ITEMS = [
   { href: "/pos", label: "Sipariş Al" },
   { href: "/orders", label: "Siparişler" },
@@ -95,7 +71,6 @@ export function navFor(role: AppRole): readonly NavItem[] {
   return NAV_ITEMS.filter((item) => canAccessPath(role, item.href));
 }
 
-/** Rol adının Türkçe karşılığı — arayüzde göstermek için. */
 export const ROLE_LABEL: Record<AppRole, string> = {
   owner: "Patron",
   manager: "Müdür",
@@ -117,17 +92,12 @@ export function canAccessPath(role: AppRole, pathname: string): boolean {
     ([prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
 
-  // Tanımsız yol = kapalı yol.
   if (!entry) return false;
 
   return entry[1].includes(role);
 }
 
-/**
- * JWT claim'leri. `tenant_id`, `branch_id` ve `app_role` veritabanındaki
- * custom access token hook tarafından yazılır (bkz. supabase/migrations).
- * Kullanıcı bunları kendi değiştiremez.
- */
+/** JWT claim'leri; custom access token hook yazar, kullanıcı değiştiremez. */
 const appClaimsSchema = z.object({
   sub: z.uuid(),
   tenant_id: z.uuid(),

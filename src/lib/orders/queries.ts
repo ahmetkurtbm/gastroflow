@@ -1,3 +1,4 @@
+import { currentPrices } from "@/core/pricing";
 import { createClient } from "@/lib/supabase/server";
 
 import { applyLineDiscount, lineTotal, pickActiveDiscount } from "./types";
@@ -45,13 +46,7 @@ export type FloorArea = {
   tables: FloorTable[];
 };
 
-/**
- * Kat planı: alan → masa → (varsa) açık adisyon özeti.
- *
- * Tek sorguda toplam tutarı almak yerine satırları çekip burada topluyoruz;
- * sebep basit — masa sayısı bir restoranda onlarca, satır sayısı yüzlerce
- * değil, veritabanında agregasyon burada kazandıracak kadar veri yok.
- */
+/** Kat planı: alan → masa → (varsa) açık adisyon özeti. */
 export async function loadFloorPlan(): Promise<FloorArea[]> {
   const supabase = await createClient();
 
@@ -113,10 +108,7 @@ export async function loadFloorPlan(): Promise<FloorArea[]> {
     tables: tablesByArea.get(area.id) ?? [],
   }));
 
-  // `area_id` NULL olan masalar (ör. alanı silinmiş — `tables.area_id` FK'si
-  // `on delete set null`) hiçbir zaman yukarıdaki döngüde eşleşmez ve sessizce
-  // kaybolurdu. "null" anahtarıyla toplanan masaları ayrı bir sözde alan
-  // olarak ekliyoruz ki hiçbir masa arayüzden görünmez olmasın.
+  // Alanı silinmiş masalar (area_id null) ayrı bir grupta gösterilir.
   const unassigned = tablesByArea.get(null) ?? [];
   if (unassigned.length > 0) {
     areas.push({ id: "unassigned", name: "Diğer", tables: unassigned });
@@ -128,24 +120,14 @@ export async function loadFloorPlan(): Promise<FloorArea[]> {
 /**
  * POS'ta gösterilecek satılabilir ürünler; fiyatı olmayan ürün gösterilmez.
  *
- * `client` opsiyonel: varsayılan oturum bağlı (RLS'li) istemci. QR self-servis
- * sipariş ekranı (`src/lib/qr-order`) burada kimliği doğrulanmış bir oturum
- * OLMADAN aynı menüyü göstermesi gerektiği için `createServiceRoleClient()`
- * geçirir — mantığı (fiyat çözümleme, modifier gruplama) iki yerde
- * kopyalamamak için parametrize edildi.
- *
- * `tenantId` da opsiyonel ama RLS'i BYPASS EDEN bir istemciyle (servis rolü)
- * çağrılırken FİİLEN ZORUNLU: normalde `tables_select`/`categories_select`
- * gibi policy'ler tenant'ı zaten zorluyor, ama servis rolü hiçbir policy'ye
- * tabi değil — `tenantId` verilmezse bu sorgu TÜM kiracıların menüsünü tek
- * listede döndürür. `loadQrMenu` bunu her zaman geçirir.
+ * QR sipariş ekranı bunu oturumsuz, RLS'i atlayan servis istemcisiyle çağırır;
+ * o yüzden `scope` verildiğinde kiracı filtresi zorunludur.
  */
 export async function loadSellableMenu(
   branchId: string,
-  client?: SupabaseClient,
-  tenantId?: string,
+  scope?: { client: SupabaseClient; tenantId: string },
 ): Promise<MenuCategory[]> {
-  const supabase = client ?? (await createClient());
+  const supabase = scope?.client ?? (await createClient());
 
   let categoriesQuery = supabase.from("categories").select("id, name, sort_order").eq("is_active", true);
   let itemsQuery = supabase
@@ -159,28 +141,19 @@ export async function loadSellableMenu(
     .select("menu_item_id, price, branch_id, valid_from")
     .or(`branch_id.eq.${branchId},branch_id.is.null`);
 
-  if (tenantId) {
-    categoriesQuery = categoriesQuery.eq("tenant_id", tenantId);
-    itemsQuery = itemsQuery.eq("tenant_id", tenantId);
-    pricesQuery = pricesQuery.eq("tenant_id", tenantId);
+  if (scope) {
+    categoriesQuery = categoriesQuery.eq("tenant_id", scope.tenantId);
+    itemsQuery = itemsQuery.eq("tenant_id", scope.tenantId);
+    pricesQuery = pricesQuery.eq("tenant_id", scope.tenantId);
   }
 
   const [categoriesResult, itemsResult, pricesResult] = await Promise.all([
     categoriesQuery.order("sort_order"),
     itemsQuery.order("sort_order"),
-    pricesQuery.order("valid_from", { ascending: false }),
+    pricesQuery,
   ]);
 
-  const priceByItem = new Map<string, number>();
-  for (const row of pricesResult.data ?? []) {
-    // Şubeye özel fiyat varsa onu tercih et; ilk görülen (en yeni) genel
-    // fiyatı yalnızca şubeye özel bir tanesi henüz yoksa kullan.
-    if (row.branch_id === branchId) {
-      priceByItem.set(row.menu_item_id, toNumber(row.price));
-    } else if (!priceByItem.has(row.menu_item_id)) {
-      priceByItem.set(row.menu_item_id, toNumber(row.price));
-    }
-  }
+  const priceByItem = currentPrices(pricesResult.data ?? [], branchId);
 
   const itemsByCategory = new Map<string | null, MenuCategory["items"]>();
   for (const item of itemsResult.data ?? []) {
@@ -203,7 +176,7 @@ export async function loadSellableMenu(
     list.push({
       id: item.id,
       name: item.name,
-      price: priceByItem.get(item.id) ?? null,
+      price: priceByItem.get(item.id)?.price ?? null,
       modifierGroups,
       imageUrl: item.image_url,
     });
@@ -247,7 +220,6 @@ export async function loadOpenOrderForTable(tableId: string): Promise<OrderView 
       note: line.note,
       discount: pickActiveDiscount(line.line_discounts ?? []),
     }))
-    // Yeni eklenenler altta değil üstte görünsün; garson son eklediğini arar.
     .reverse();
 
   return {
@@ -261,12 +233,7 @@ export async function loadOpenOrderForTable(tableId: string): Promise<OrderView 
   };
 }
 
-/**
- * `loadOpenOrderForTable`'ın masasız (Gel Al / Self Servis) karşılığı —
- * `/pos/siparis/[orderId]` bu fonksiyonla, `/pos/masa/[tableId]` diğeriyle
- * çalışır. İkisi de aynı `OrderView` şeklini döndürdüğü için `OrderScreen`/
- * `Cart` hiçbir değişiklik gerektirmeden ikisini de gösterebiliyor.
- */
+/** `loadOpenOrderForTable`'ın masasız (Gel Al / Self Servis) karşılığı. */
 export async function loadOpenOrderById(orderId: string): Promise<OrderView | null> {
   const supabase = await createClient();
 
@@ -358,25 +325,17 @@ export type KitchenTicket = {
   id: string;
   menuItemName: string;
   quantity: number;
-  /** Modifier adları, virgülle ayrılmış (ör. "Büyük boy"). Mutfağın hangi
-   * boy/varyantı hazırlayacağını bilmesi için — fiyat farkı burada önemsiz,
-   * yalnızca ad gösterilir. */
+  /** Modifier adları, virgülle ayrılmış (ör. "Büyük boy"). */
   modifierSummary: string | null;
   note: string | null;
   status: "sent" | "preparing" | "ready";
   tableName: string | null;
   orderNo: number | null;
-  /** ISO zaman damgası. Süre sayacı bunu kullanır; sorgu yalnızca
-   * gönderilmiş satırları getirdiği için null olamaz. */
+  /** ISO zaman damgası; yalnızca gönderilmiş satırlar geldiği için null olamaz. */
   sentAt: string;
 };
 
-/**
- * Mutfak kuyruğu: gönderilmiş ama henüz servis edilmemiş satırlar.
- *
- * `sent_at` sıralı — mutfak en eski siparişi en üstte görmeli, aksi hâlde
- * en yeni sipariş sürekli önce hazırlanır ve eski sipariş unutulur.
- */
+/** Mutfak kuyruğu: gönderilmiş ama servis edilmemiş satırlar, en eskisi üstte. */
 export async function loadKitchenQueue(): Promise<KitchenTicket[]> {
   const supabase = await createClient();
 
@@ -424,13 +383,7 @@ export type OrderTrackingSummary = {
   lines: OrderTrackingLine[];
 };
 
-/**
- * `/orders` sipariş takip ekranı için açık adisyonların özeti.
- *
- * RLS zaten şube kısıtını uyguluyor (`orders_select`): garson yalnızca
- * kendi şubesinin adisyonlarını görür, müdür/patron hepsini görür — burada
- * ayrıca rol filtresi eklemiyoruz, veritabanı sınırı zaten yeterli.
- */
+/** `/orders` ekranı için açık adisyon özeti; şube kısıtı RLS'tedir. */
 export async function loadOpenOrdersTracking(): Promise<OrderTrackingSummary[]> {
   const supabase = await createClient();
 
@@ -488,11 +441,8 @@ export type PendingDiscountRequest = {
 };
 
 /**
- * `/approvals` ekranı için bekleyen ikram/iskonto istekleri.
- *
- * `line_discounts.requested_by` `auth.users`'a referans veriyor, `profiles`
- * tablosuna değil — PostgREST ikisi arasında FK olmadığı için otomatik embed
- * edemiyor. Bu yüzden istekçi adını ayrı bir sorguyla eşliyoruz.
+ * `/approvals` için bekleyen ikram/iskonto istekleri. `requested_by` auth.users'a
+ * bağlı olduğu için istekçi adı ayrı sorguyla eşleştirilir.
  */
 export async function loadPendingDiscounts(): Promise<PendingDiscountRequest[]> {
   const supabase = await createClient();

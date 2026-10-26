@@ -1,21 +1,10 @@
 /**
- * Para tipi.
+ * Para, veritabanındaki `numeric(14,4)` ile aynı ölçekte, 1/10.000 TL'lik tam
+ * sayı olarak tutulur; float yuvarlama hatası kasa mutabakatına yansımasın.
  *
- * Para, 1/10.000 TL'lik tam sayı birimlerinde tutulur — veritabanındaki
- * `numeric(14,4)` ile birebir aynı ölçek. Float kullanılmaz: 0,1 + 0,2 = 0,30000000000000004
- * hesabı gün sonu kasa mutabakatında bir kuruşluk fark olarak geri döner ve
- * o farkı arayan kişi saatini kaybeder.
- *
- * ÖNEMLİ AYRIM — bu tip her yerde kullanılmaz:
- *
- *   · `Money`  → SAKLANAN ve GİRİLEN tutarlar: menü fiyatı, fatura satırı,
- *                ödeme, kasa sayımı. Kullanıcının gördüğü kesin değerler.
- *
- *   · `number` → TÜRETİLEN ara değerler: birim maliyet (TL/gram gibi),
- *                reçete ağacındaki ara toplamlar. Bunlar çok küçük olabilir
- *                (0,00003 TL/g) ve 4 haneye yuvarlanırsa sıfıra düşüp maliyeti
- *                yok ederdi. Ara hesap ondalık yapılır, YALNIZCA sonuç `Money`'ye
- *                yuvarlanır.
+ * `Money` saklanan ve girilen tutarlar içindir (fiyat, ödeme, kasa sayımı).
+ * Birim maliyet gibi çok küçük ara değerler `number` kalır; 4 haneye
+ * yuvarlanırsa sıfıra düşerler. Yalnızca sonuç `Money`'ye çevrilir.
  */
 
 const SCALE = 10_000;
@@ -32,12 +21,7 @@ export class MoneyError extends Error {
   }
 }
 
-/**
- * Yarımı sıfırdan uzağa yuvarlar (0,5 → 1; -0,5 → -1).
- *
- * `Math.round` negatiflerde artı sonsuza yuvarlıyor (-0,5 → -0), yani iade ve
- * indirim satırlarında bir kuruşluk asimetri üretirdi.
- */
+/** Yarımı sıfırdan uzağa yuvarlar; `Math.round` negatiflerde -0,5'i -0 yapar. */
 function roundHalfAwayFromZero(value: number): number {
   return value < 0 ? -Math.round(-value) : Math.round(value);
 }
@@ -64,10 +48,7 @@ export function toLira(value: Money): number {
   return value / SCALE;
 }
 
-/**
- * Veritabanından gelen `numeric` değerini okur.
- * Postgres `numeric` alanlarını JSON'a string olarak taşır (hassasiyet kaybolmasın diye).
- */
+/** Veritabanından gelen `numeric` değerini okur; PostgREST bunu string döndürür. */
 export function parseMoney(value: string | number): Money {
   const parsed = typeof value === "string" ? Number(value) : value;
   if (Number.isNaN(parsed)) {
@@ -101,12 +82,7 @@ export function multiply(value: Money, quantity: number): Money {
   return roundHalfAwayFromZero(value * quantity) as Money;
 }
 
-/**
- * Tutarı böler ve sonucu ondalık TL olarak döndürür.
- *
- * Bilerek `Money` döndürmüyor: birim maliyet hesabında (paket fiyatı ÷ gram)
- * sonuç çoğu zaman 4 haneden küçüktür ve `Money`'ye yuvarlansa sıfıra düşerdi.
- */
+/** Tutarı böler ve ondalık TL döndürür; birim maliyet `Money`'ye yuvarlanınca sıfırlanabilir. */
 export function divideToRate(value: Money, divisor: number): number {
   if (!Number.isFinite(divisor) || divisor === 0) {
     throw new MoneyError(`Geçersiz bölen: ${divisor}.`);
@@ -122,13 +98,7 @@ export function compare(a: Money, b: Money): number {
   return a - b;
 }
 
-/**
- * Bir tutarı kalansız paylara böler.
- *
- * Hesap bölmede (Faz 2) gerekiyor: 100 TL'yi 3 kişiye bölünce 33,33 + 33,33 + 33,33
- * = 99,99 eder ve 1 kuruş buharlaşır. Bu fonksiyon artığı baştan başlayarak
- * dağıtır, böylece parçaların toplamı her zaman bütüne eşit kalır.
- */
+/** Tutarı eşit ve kalansız paylara böler; artık baştaki paylara dağıtılır, toplam korunur. */
 export function allocate(value: Money, parts: number): Money[] {
   if (!Number.isInteger(parts) || parts < 1) {
     throw new MoneyError(`Pay sayısı en az 1 tam sayı olmalı: ${parts}.`);
@@ -145,18 +115,9 @@ export function allocate(value: Money, parts: number): Money[] {
 }
 
 /**
- * Bir tutarı AĞIRLIKLARA ORANTILI, kalansız paylara böler.
- *
- * `allocate()`'ten farkı: o eşit böler (hesap bölme — 3 kişiye 33,33+33,33+33,34),
- * bu ORANTILI böler (kombo/menü kampanyası — "Büyük Menü" 120 TL'yi normalde
- * 80 TL'lik burger + 40 TL'lik patatese, ağırlıklarıyla orantılı olarak 80+40
- * yerine kombonun indirimli TOPLAMına göre yeniden ölçeklenmiş halde dağıtır).
- *
- * "En büyük artık" (largest remainder) yöntemi: önce her payı aşağı yuvarla,
- * kalan birimleri en büyük kesirli artığı olan paylara sırayla dağıt. Böylece
- * toplam her zaman `value`'ya eşit kalır — hiçbir kuruş kaybolmaz/fazla gelmez.
- * Tüm ağırlıklar sıfırsa (ör. bileşenlerden hiçbirinin fiyatı tanımlı değil)
- * eşit bölüşüme düşülür.
+ * Tutarı ağırlıklara orantılı ve kalansız paylara böler (kombo fiyatının
+ * bileşenlere dağıtımı). En büyük artık yöntemi kullanılır, toplam korunur.
+ * Ağırlıkların hepsi sıfırsa eşit bölünür.
  */
 export function allocateProportional(value: Money, weights: readonly Money[]): Money[] {
   if (weights.length === 0) {
@@ -205,11 +166,7 @@ const rateFormatter = new Intl.NumberFormat("tr-TR", {
   maximumFractionDigits: 4,
 });
 
-/**
- * Birim maliyet gibi çok küçük olabilen türetilmiş tutarları gösterir.
- * `0,0300 ₺` — normal para biçimiyle gösterilse `0,03 ₺` olur ve un ile
- * baharatın maliyeti aynı görünürdü.
- */
+/** Birim maliyet gibi küçük tutarları 4 haneye kadar gösterir: `0,0300 ₺`. */
 export function formatRate(lira: number): string {
   return rateFormatter.format(lira);
 }

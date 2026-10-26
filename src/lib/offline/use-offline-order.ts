@@ -20,16 +20,7 @@ export type OptimisticLine = {
   modifierSummary: string | null;
 };
 
-/**
- * `navigator.onLine`'a hydration-güvenli erişim.
- *
- * Sunucuda `navigator` yok; istemcide de mount ANINDA gerçek değeri okumak
- * sunucunun ürettiği HTML'den (her zaman "çevrimiçi" varsayar) farklı çıkıp
- * React hydration uyuşmazlığı üretebilirdi. `useSyncExternalStore` bunun için
- * var: `getServerSnapshot` sunucuyla birebir aynı değeri (`true`) döner,
- * gerçek değer yalnızca hydration TAMAMLANDIKTAN sonraki bir render'da
- * `getSnapshot`'tan okunur.
- */
+/** Hydration uyumlu `navigator.onLine`; sunucu ve ilk render `true` varsayar. */
 function subscribeToOnlineStatus(callback: () => void) {
   window.addEventListener("online", callback);
   window.addEventListener("offline", callback);
@@ -46,13 +37,9 @@ function getOnlineServerSnapshot() {
 }
 
 /**
- * Bir sipariş ekranının offline durumunu yönetir.
- *
- * Üç şeyi birlikte tutar: bağlantı durumu, henüz senkronlanmamış mutasyon
- * sayısı, ve henüz sunucuya ulaşmamış ürünlerin iyimser (optimistic)
- * görünümü. Senkron başarılı olduğunda `router.refresh()` çağrılır — bu,
- * sunucudan taze veriyi çeker ve iyimser satırların üstüne yazar; yani
- * "iyimser satır" hep GEÇİCİ bir kaplama, tek doğruluk kaynağı sunucu.
+ * Sipariş ekranının offline durumu: bağlantı, bekleyen mutasyon sayısı ve
+ * sunucuya henüz ulaşmamış ürünlerin iyimser görünümü. Senkron sonrası
+ * `router.refresh()` sunucu verisini geri getirir.
  */
 export function useOfflineOrder(orderId: string) {
   const router = useRouter();
@@ -64,10 +51,7 @@ export function useOfflineOrder(orderId: string) {
   const [queueCount, setQueueCount] = useState(0);
   const [optimisticLines, setOptimisticLines] = useState<OptimisticLine[]>([]);
   const syncingRef = useRef(false);
-  // `sync()` meşgulken gelen bir çağrı sessizce atlanırsa, o çağrının
-  // eklediği mutasyon (ör. hızlı art arda "ürün ekle" + "mutfağa gönder")
-  // bir sonraki tetiklemeye kadar kuyrukta asılı kalabilirdi. Bu bayrak
-  // meşgulken geleni not eder; mevcut sync bitince otomatik tekrar dener.
+  // Sync meşgulken gelen çağrı not edilir ve bitince tekrar denenir.
   const resyncRequestedRef = useRef(false);
 
   const refreshQueueView = useCallback(async () => {
@@ -90,10 +74,6 @@ export function useOfflineOrder(orderId: string) {
   }, [orderId]);
 
   const sync = useCallback(async () => {
-    // Aynı anda iki drain çalışmasın: `online` olayı ve manuel tetikleme
-    // aynı anda gelirse aynı mutasyon iki kere denenmez (zararsız olurdu ama
-    // gereksiz istek). Meşgulken gelen çağrı KAYBOLMUYOR — mevcut sync
-    // bitince `resyncRequestedRef` sayesinde otomatik tekrar deniyor.
     if (syncingRef.current) {
       resyncRequestedRef.current = true;
       return;
@@ -114,17 +94,12 @@ export function useOfflineOrder(orderId: string) {
     }
   }, [refreshQueueView, router]);
 
-  // `isOnline` mount'ta (sunucuyla eşleşen `true` varsayımından gerçek değere)
-  // ya da bir `online` olayıyla değiştiğinde kuyruğu boşaltmayı dener —
-  // `sync()` zaten offline'sa hiçbir şey yapmıyor, o yüzden ayrım gerekmiyor.
   useEffect(() => {
     if (isOnline) void sync();
   }, [isOnline, sync]);
 
   useEffect(() => {
-    // `online`/`offline` olayları bazı ağlarda güvenilir tetiklenmiyor
-    // (ör. wifi bağlı ama internet yok). Güvenlik ağı olarak düşük sıklıkta
-    // yeniden dene — sık değil ki gereksiz istek yığmasın.
+    // `online` olayı her ağda güvenilir değil; düşük sıklıkla yeniden dene.
     const interval = setInterval(() => {
       if (navigator.onLine) void sync();
     }, 30_000);
