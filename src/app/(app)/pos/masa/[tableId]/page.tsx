@@ -5,7 +5,7 @@ import { loadSellableCombos } from "@/lib/combos/queries";
 import { requireAppUser } from "@/lib/auth/current-user";
 import { openTable } from "@/lib/orders/actions";
 import { loadOpenOrderForTable, loadSellableMenu } from "@/lib/orders/queries";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 import { OrderScreen } from "./order-screen";
 

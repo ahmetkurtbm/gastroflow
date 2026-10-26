@@ -7,7 +7,7 @@ import { z } from "zod";
 import { currentPrices } from "@/core/pricing";
 import { requireAppUser } from "@/lib/auth/current-user";
 import { parseWorkbookRows, type ImportResult } from "@/lib/excel/workbook";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, publicFilePath } from "@/lib/db/client";
 
 // Yetki sınırı RLS'tedir (`is_manager()`); `requireAppUser()` tenant_id'yi
 // formdan değil doğrulanmış oturumdan almak için çağrılır.
@@ -582,8 +582,8 @@ export async function uploadMenuItemImage(
     if (uploadError) return { error: uploadError.message };
 
     const { data: publicUrlData } = supabase.storage.from("menu-images").getPublicUrl(path);
-    // URL aynı kaldığı için CDN önbelleğini zaman damgasıyla kırıyoruz.
-    const cacheBustedUrl = `${publicUrlData.publicUrl}?v=${Date.now()}`;
+    // Yol aynı kaldığı için tarayıcı önbelleğini zaman damgasıyla kırıyoruz.
+    const cacheBustedUrl = `${publicFilePath(publicUrlData.publicUrl)}?v=${Date.now()}`;
 
     const { error: updateError } = await supabase
       .from("menu_items")

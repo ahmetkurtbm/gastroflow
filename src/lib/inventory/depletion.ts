@@ -3,7 +3,7 @@ import "server-only";
 import { explodeToIngredients } from "@/core/recipe";
 import { convert } from "@/core/units";
 import { loadCatalog } from "@/lib/recipes/catalog";
-import { createServiceRoleClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/db/client";
 
 /**
  * Adisyon kapanınca satıştan stok düşer. Her satır satış anında dondurulan

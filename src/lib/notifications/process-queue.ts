@@ -1,8 +1,13 @@
-// Bildirim kuyruğu işleyicisi. Bekleyen outbox satırlarının alıcılarını
-// `notification_rules` ya da varsayılan rollerden çözer. Gerçek e-posta henüz
-// gönderilmiyor (mock); sonuç `notification_log`'a yazılır.
+import "server-only";
 
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import type { AppRole } from "@/lib/auth/access";
+import type { createServiceRoleClient } from "@/lib/db/client";
+
+// Bekleyen outbox satırlarının alıcılarını `notification_rules` ya da varsayılan
+// rollerden çözer. Gerçek e-posta henüz gönderilmiyor (mock); sonuç
+// `notification_log`'a yazılır.
+
+type ServiceClient = ReturnType<typeof createServiceRoleClient>;
 
 type EventType =
   | "low_stock"
@@ -14,7 +19,7 @@ type EventType =
   | "weekly_cost_report";
 
 // Varsayılan alıcı rolleri; tenant'ın kendi kuralı varsa o geçerlidir.
-const DEFAULT_RECIPIENT_ROLES: Record<EventType, string[]> = {
+const DEFAULT_RECIPIENT_ROLES: Record<EventType, AppRole[]> = {
   low_stock: ["storekeeper", "manager"],
   negative_stock: ["manager", "owner"],
   approval_pending: ["manager", "owner"],
@@ -28,41 +33,20 @@ function money(n: number): string {
   return n.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ₺";
 }
 
-// Kuyruk tüm kiracıları kapsadığı için yalnızca service role anahtarıyla
-// çağrılabilir; gateway'in kabul ettiği anon/publishable anahtar yetmez.
-function isServiceRoleCaller(req: Request, serviceRoleKey: string): boolean {
-  const header = req.headers.get("authorization") ?? "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
-  if (!serviceRoleKey || token.length !== serviceRoleKey.length) return false;
-  let diff = 0;
-  for (let i = 0; i < token.length; i++) {
-    diff |= token.charCodeAt(i) ^ serviceRoleKey.charCodeAt(i);
-  }
-  return diff === 0;
-}
-
-Deno.serve(async (req: Request) => {
-  if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
-  }
-
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!isServiceRoleCaller(req, serviceRoleKey)) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-
-  const supabase = createClient(Deno.env.get("SUPABASE_URL") ?? "", serviceRoleKey);
-
+/** Alıcıların e-postası Auth'tan okunduğu için service role istemcisiyle çağrılır. */
+export async function processNotificationOutbox(
+  supabase: ServiceClient,
+  tenantId: string,
+): Promise<{ processed: number; sentEmails: number }> {
   const { data: pending, error: pendingError } = await supabase
     .from("notification_outbox")
     .select("id, tenant_id, event_type, payload")
+    .eq("tenant_id", tenantId)
     .eq("status", "pending")
     .order("created_at", { ascending: true })
     .limit(50);
 
-  if (pendingError) {
-    return new Response(JSON.stringify({ error: pendingError.message }), { status: 500 });
-  }
+  if (pendingError) throw new Error(pendingError.message);
 
   let processed = 0;
   let sentEmails = 0;
@@ -92,7 +76,7 @@ Deno.serve(async (req: Request) => {
         ? rule.recipient_roles
         : DEFAULT_RECIPIENT_ROLES[eventType];
 
-    const recipients: { email: string; role: string }[] = [];
+    const recipients: { email: string; role: AppRole }[] = [];
     if (roles.length > 0) {
       const { data: members } = await supabase
         .from("memberships")
@@ -152,14 +136,11 @@ Deno.serve(async (req: Request) => {
     processed++;
   }
 
-  return new Response(JSON.stringify({ processed, sentEmails }), {
-    headers: { "Content-Type": "application/json" },
-  });
-});
+  return { processed, sentEmails };
+}
 
 async function renderTemplate(
-  // deno-lint-ignore no-explicit-any
-  supabase: any,
+  supabase: ServiceClient,
   eventType: EventType,
   payload: Record<string, unknown>,
 ): Promise<{ subject: string; body: string }> {
@@ -167,8 +148,8 @@ async function renderTemplate(
     case "low_stock":
     case "negative_stock": {
       const [{ data: item }, { data: location }] = await Promise.all([
-        supabase.from("inventory_items").select("name, base_unit").eq("id", payload.itemId).maybeSingle(),
-        supabase.from("stock_locations").select("name").eq("id", payload.locationId).maybeSingle(),
+        supabase.from("inventory_items").select("name, base_unit").eq("id", String(payload.itemId)).maybeSingle(),
+        supabase.from("stock_locations").select("name").eq("id", String(payload.locationId)).maybeSingle(),
       ]);
       const itemName = item?.name ?? "Bilinmeyen ürün";
       const locationName = location?.name ?? "Bilinmeyen lokasyon";
@@ -190,7 +171,7 @@ async function renderTemplate(
         const { data: supplier } = await supabase
           .from("suppliers")
           .select("name")
-          .eq("id", payload.supplierId)
+          .eq("id", String(payload.supplierId))
           .maybeSingle();
         return {
           subject: "Satın alma siparişi onay bekliyor",
@@ -206,7 +187,7 @@ async function renderTemplate(
       const { data: supplier } = await supabase
         .from("suppliers")
         .select("name")
-        .eq("id", payload.supplierId)
+        .eq("id", String(payload.supplierId))
         .maybeSingle();
       return {
         subject: "Satın alma siparişi onaylandı",

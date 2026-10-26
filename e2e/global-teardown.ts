@@ -3,7 +3,7 @@ import path from "node:path";
 
 process.loadEnvFile?.(".env.local");
 
-import { adminClient, destroyTestTenant, type TestTenant } from "./supabase-admin";
+import { adminClient, destroyTestTenant, type TestTenant } from "./db-admin";
 
 const STATE_PATH = path.join(__dirname, ".state.json");
 

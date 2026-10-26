@@ -7,7 +7,7 @@ import { z } from "zod";
 
 import { APP_ROLES } from "@/lib/auth/access";
 import { requireAppUser } from "@/lib/auth/current-user";
-import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { createClient, createServiceRoleClient } from "@/lib/db/client";
 
 export type AddStaffState = { error?: string; created?: { email: string; password: string } };
 
@@ -104,8 +104,7 @@ const staffIdSchema = z.object({ id: z.uuid() });
 
 /**
  * Personeli pasif eder; üyelik ve denetim geçmişi silinmez. JWT claim'leri
- * token yenilenene kadar (~1 saat) geçerli kalır; anında kesmek için oturum
- * Supabase panelinden sonlandırılmalıdır.
+ * token yenilenene kadar (en geç 1 saat) geçerli kalır.
  */
 export async function deactivateStaffMember(formData: FormData) {
   const { id } = staffIdSchema.parse({ id: formData.get("id") });

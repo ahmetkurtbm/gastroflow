@@ -6,7 +6,7 @@ import { z } from "zod";
 import { compare, money, multiply, toLira } from "@/core/money";
 import { requireAppUser } from "@/lib/auth/current-user";
 import { loadOrderForPayment } from "@/lib/cash/queries";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 export type ActionState = { error?: string; ok?: boolean };
 

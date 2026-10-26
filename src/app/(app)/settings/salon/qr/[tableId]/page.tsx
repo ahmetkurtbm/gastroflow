@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 import QRCode from "qrcode";
 
 import { regenerateTableQrToken } from "@/lib/floor/actions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 export const metadata: Metadata = { title: "Masa QR Kodu" };
 

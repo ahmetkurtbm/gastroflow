@@ -4,7 +4,7 @@ import path from "node:path";
 import { expect, test } from "@playwright/test";
 
 import { login } from "./helpers";
-import { adminClient, type TestTenant } from "./supabase-admin";
+import { adminClient, type TestTenant } from "./db-admin";
 
 const STATE_PATH = path.join(__dirname, ".state.json");
 
@@ -13,15 +13,10 @@ async function readState() {
   return JSON.parse(raw) as { orderFlow: TestTenant; isolationOther: TestTenant };
 }
 
-// KDS'nin realtime kanalı her olayda TÜM açık biletleri yeniden çekiyordu
-// (refetch()) — yoğun serviste (dakikada onlarca durum değişimi) gereksiz
-// sorgu yükü demekti. Artık yalnızca değişen satırı yamalıyor: yeni bir
-// bilet (INSERT) tek satır sorgusuyla eklenir, durum değişimi (UPDATE) hiç
-// sorgu atmadan yerinde güncellenir. Bu test doğrudan veritabanına yazıp
-// (POS akışını simüle ederek) sayfa HİÇ YENİLENMEDEN ekranın güncellendiğini
-// kanıtlıyor — yani gerçekten realtime çalışıyor, tam sayfa yeniden
-// yükleme/refetch'e bağlı değil.
-test("KDS realtime: yeni bilet sayfa yenilenmeden belirir, durum değişimi yerinde güncellenir", async ({
+// Mutfak ekranı başka ekranlardan gelen değişiklikleri periyodik yenilemeyle
+// alır. Bu test doğrudan veritabanına yazıp (POS akışını taklit ederek)
+// kullanıcı sayfayı yenilemeden ekranın güncellendiğini kanıtlıyor.
+test("KDS: yeni bilet ve durum değişimi sayfa yenilenmeden görünür", async ({
   page,
 }) => {
   const { orderFlow } = await readState();
@@ -76,21 +71,13 @@ test("KDS realtime: yeni bilet sayfa yenilenmeden belirir, durum değişimi yeri
   // Henüz "pending" — KDS'de görünmemeli.
   await expect(page.getByText(itemName)).not.toBeVisible();
 
-  // Realtime websocket kanalının abone olması (channel.subscribe()) bir
-  // ağ round-trip'i — sayfa yüklendi diye kanalın da hazır olduğu garanti
-  // değil. Değişikliği tetiklemeden önce küçük bir tampon.
-  await page.waitForTimeout(2_000);
-
-  // POS'un sendToKitchen'ının yaptığı UPDATE'i taklit ediyoruz. Sayfa hiç
-  // yenilenmiyor — yalnızca realtime kanal bunu yakalayıp INSERT-yolunu
-  // (tek satır sorgusu) tetiklemeli.
+  // POS'un sendToKitchen'ının yaptığı UPDATE'i taklit ediyoruz; sayfa elle yenilenmiyor.
   await admin.from("order_lines").update({ status: "sent" }).eq("id", line!.id);
 
   const bekliyorColumn = page.locator("section").filter({ has: page.getByRole("heading", { name: "Bekliyor" }) });
   await expect(bekliyorColumn.getByText(itemName)).toBeVisible({ timeout: 10_000 });
 
-  // Şimdi durum değişimi (UPDATE-yolu: yerinde yama, sorgu yok) — bilet
-  // "Hazırlanıyor" sütununa geçmeli, "Bekliyor"dan kaybolmalı.
+  // Durum değişimi: bilet "Hazırlanıyor" sütununa geçmeli, "Bekliyor"dan kaybolmalı.
   await admin.from("order_lines").update({ status: "preparing" }).eq("id", line!.id);
 
   const hazirlaniyorColumn = page

@@ -1,40 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { advanceKitchenTicket } from "@/lib/orders/actions";
+import { useLiveRefresh } from "@/lib/live-refresh";
 import type { KitchenTicket } from "@/lib/orders/queries";
-import { createClient } from "@/lib/supabase/client";
-
-const KDS_STATUSES: readonly KitchenTicket["status"][] = ["sent", "preparing", "ready"];
-
-function mapTicketRow(
-  line: {
-    id: string;
-    quantity: number | string;
-    note: string | null;
-    status: string;
-    sent_at: string | null;
-    menu_items: { name: string } | null;
-    orders: { order_no: number | null; tables: { name: string } | null } | null;
-    order_line_modifiers: { name: string }[] | null;
-  },
-): KitchenTicket {
-  return {
-    id: line.id,
-    menuItemName: line.menu_items?.name ?? "Bilinmeyen ürün",
-    quantity: Number(line.quantity),
-    modifierSummary:
-      (line.order_line_modifiers ?? []).length > 0
-        ? line.order_line_modifiers!.map((m) => m.name).join(", ")
-        : null,
-    note: line.note,
-    status: line.status as KitchenTicket["status"],
-    tableName: line.orders?.tables?.name ?? null,
-    orderNo: line.orders?.order_no ?? null,
-    sentAt: line.sent_at as string,
-  };
-}
 
 const COLUMNS: {
   status: KitchenTicket["status"];
@@ -111,86 +81,9 @@ function TicketCard({ ticket }: { ticket: KitchenTicket }) {
   );
 }
 
-export function KdsBoard({
-  initialTickets,
-  tenantId,
-}: {
-  initialTickets: KitchenTicket[];
-  tenantId: string;
-}) {
-  // İlk değer yalnızca mount anında kullanılır; sonrası realtime'a bırakılıyor.
-  const [tickets, setTickets] = useState(initialTickets);
-  const [supabase] = useState(() => createClient());
-
-  // Olay işleyici güncel listeye ref üzerinden erişir. Durum değişiminde yerel
-  // state yamalanır; yalnızca yeni bilet için tek satır sorgulanır.
-  const ticketsRef = useRef(tickets);
-  useEffect(() => {
-    ticketsRef.current = tickets;
-  }, [tickets]);
-
-  useEffect(() => {
-    async function fetchTicket(id: string): Promise<KitchenTicket | null> {
-      const { data } = await supabase
-        .from("order_lines")
-        .select(
-          "id, quantity, note, status, sent_at, menu_items(name), orders(order_no, tables(name)), order_line_modifiers(name)",
-        )
-        .eq("id", id)
-        .maybeSingle();
-      return data ? mapTicketRow(data) : null;
-    }
-
-    // Asıl sınır RLS; tenant_id filtresi yalnızca olay trafiğini azaltır.
-    const channel = supabase
-      .channel("kds-order-lines")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "order_lines",
-          filter: `tenant_id=eq.${tenantId}`,
-        },
-        (payload) => {
-          if (payload.eventType === "DELETE") {
-            const oldId = (payload.old as { id: string }).id;
-            setTickets((prev) => prev.filter((t) => t.id !== oldId));
-            return;
-          }
-
-          const row = payload.new as { id: string; status: string };
-
-          if (!KDS_STATUSES.includes(row.status as KitchenTicket["status"])) {
-            setTickets((prev) => prev.filter((t) => t.id !== row.id));
-            return;
-          }
-
-          if (ticketsRef.current.some((t) => t.id === row.id)) {
-            setTickets((prev) =>
-              prev.map((t) =>
-                t.id === row.id ? { ...t, status: row.status as KitchenTicket["status"] } : t,
-              ),
-            );
-            return;
-          }
-
-          void fetchTicket(row.id).then((ticket) => {
-            if (!ticket) return;
-            setTickets((prev) =>
-              prev.some((t) => t.id === ticket.id)
-                ? prev
-                : [...prev, ticket].sort((a, b) => a.sentAt.localeCompare(b.sentAt)),
-            );
-          });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [supabase, tenantId]);
+export function KdsBoard({ tickets }: { tickets: KitchenTicket[] }) {
+  // Yeni biletler ve başka ekranlardan gelen durum değişiklikleri periyodik yenilemeyle gelir.
+  useLiveRefresh();
 
   const byStatus = (status: KitchenTicket["status"]) =>
     tickets.filter((t) => t.status === status);

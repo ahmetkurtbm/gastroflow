@@ -1,5 +1,5 @@
 import { currentPrices } from "@/core/pricing";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 

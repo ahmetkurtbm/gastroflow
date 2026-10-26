@@ -10,7 +10,7 @@ import type { Dictionary } from "@/lib/i18n/dictionaries";
 import { getServerDictionary } from "@/lib/i18n/server";
 import { LanguageSwitcher } from "@/lib/i18n/language-switcher";
 import { I18nProvider } from "@/lib/i18n/provider";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 const NAV_KEY_BY_HREF: Record<string, keyof Dictionary["nav"]> = {
   "/pos": "pos",

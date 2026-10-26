@@ -4,10 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import type { OrderTrackingSummary } from "@/lib/orders/queries";
-import { applyLineDiscount, pickActiveDiscount } from "@/lib/orders/types";
-import { createClient } from "@/lib/supabase/client";
-
-const DISCOUNT_SELECT = "line_discounts(id, kind, value, status, reason, created_at)";
+import { useLiveRefresh } from "@/lib/live-refresh";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Gönderilmedi",
@@ -23,10 +20,6 @@ const LATE_THRESHOLD_MINUTES = 15;
 
 function minutesSince(iso: string): number {
   return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-}
-
-function toNumber(value: string | number | null | undefined): number {
-  return typeof value === "number" ? value : Number(value ?? 0);
 }
 
 function formatLira(value: number): string {
@@ -118,84 +111,8 @@ function OrderCard({ order }: { order: OrderTrackingSummary }) {
   );
 }
 
-export function OrdersBoard({
-  initialOrders,
-  tenantId,
-}: {
-  initialOrders: OrderTrackingSummary[];
-  tenantId: string;
-}) {
-  const [orders, setOrders] = useState(initialOrders);
-  const [supabase] = useState(() => createClient());
-
-  useEffect(() => {
-    async function refetch() {
-      const { data } = await supabase
-        .from("orders")
-        .select(
-          `id, order_no, table_id, guest_count, opened_at, tables(name), order_lines(id, quantity, unit_price, status, sent_at, menu_items(name), order_line_modifiers(price_delta), ${DISCOUNT_SELECT})`,
-        )
-        .eq("status", "open")
-        .order("opened_at", { ascending: true });
-
-      setOrders(
-        (data ?? []).map((order) => {
-          const lines = order.order_lines ?? [];
-          const total = lines.reduce((sum, line) => {
-            const modifierTotal = (line.order_line_modifiers ?? []).reduce(
-              (s, m) => s + toNumber(m.price_delta),
-              0,
-            );
-            const base = toNumber(line.quantity) * (toNumber(line.unit_price) + modifierTotal);
-            return sum + applyLineDiscount(base, pickActiveDiscount(line.line_discounts ?? []));
-          }, 0);
-
-          return {
-            id: order.id,
-            orderNo: order.order_no,
-            tableId: order.table_id,
-            tableName: order.tables?.name ?? null,
-            guestCount: order.guest_count,
-            openedAt: order.opened_at,
-            total,
-            lines: lines.map((line) => ({
-              id: line.id,
-              menuItemName: line.menu_items?.name ?? "Bilinmeyen ürün",
-              quantity: toNumber(line.quantity),
-              status: line.status,
-              sentAt: line.sent_at,
-              discount: pickActiveDiscount(line.line_discounts ?? []),
-            })),
-          };
-        }),
-      );
-    }
-
-    // KDS panosuyla aynı desen: RLS zaten şube/tenant sınırını uyguluyor,
-    // buradaki filtre yalnızca gereksiz olay trafiğini azaltıyor.
-    const channel = supabase
-      .channel("orders-tracking")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "orders", filter: `tenant_id=eq.${tenantId}` },
-        () => void refetch(),
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "order_lines", filter: `tenant_id=eq.${tenantId}` },
-        () => void refetch(),
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "line_discounts", filter: `tenant_id=eq.${tenantId}` },
-        () => void refetch(),
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [supabase, tenantId]);
+export function OrdersBoard({ orders }: { orders: OrderTrackingSummary[] }) {
+  useLiveRefresh();
 
   if (orders.length === 0) {
     return (

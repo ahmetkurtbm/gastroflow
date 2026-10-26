@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { ROLE_LABEL, type AppRole } from "@/lib/auth/access";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 export const metadata: Metadata = { title: "Loglar" };
 

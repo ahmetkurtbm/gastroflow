@@ -1,0 +1,35 @@
+# Yerel kurulum: Postgres + uygulama.
+#   docker compose up --build        → http://localhost:3000
+#   docker compose up -d db          → yalnızca veritabanı (npm run dev ile çalışmak için)
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: gastroflow
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gastroflow"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/gastroflow
+      # Yalnızca yerel kullanım için; paylaşılan bir ortamda değiştirin.
+      AUTH_SECRET: gastroflow-local-docker-secret-change-me-0123456789
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

@@ -4,7 +4,7 @@ import path from "node:path";
 import { expect, test } from "@playwright/test";
 
 import { login } from "./helpers";
-import { adminClient, type TestTenant } from "./supabase-admin";
+import { adminClient, type TestTenant } from "./db-admin";
 
 const STATE_PATH = path.join(__dirname, ".state.json");
 
@@ -32,9 +32,10 @@ test("mobil sayım: sayfa sayfa kaydedilir, her sayfa hareketleri ledger'a düş
     .select("id")
     .single();
 
-  // Sıfır dolgulu numaralar: "E2E-Ham-01" regex'i "E2E-Ham-10"nun da alt
+  // Sıfır dolgulu numaralar: "E2E-0Ham-01" regex'i "E2E-0Ham-10"nun da alt
   // dizesi OLMASIN diye — aksi hâlde getByLabel iki etikete birden eşleşirdi.
-  const itemNames = Array.from({ length: 10 }, (_, i) => `E2E-Ham-${String(i + 1).padStart(2, "0")}`);
+  // "0" öneki, diğer testlerin aynı kiracıya eklediği hammaddelerin önüne sıralar.
+  const itemNames = Array.from({ length: 10 }, (_, i) => `E2E-0Ham-${String(i + 1).padStart(2, "0")}`);
   const { data: items } = await admin
     .from("inventory_items")
     .insert(

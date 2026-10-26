@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 function toNumber(value: string | number | null | undefined): number {
   return typeof value === "number" ? value : Number(value ?? 0);

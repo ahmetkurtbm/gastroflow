@@ -1,8 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
-// Next.js dev sunucusu .env.local'i kendisi okur; ama bu config dosyası ve
-// global-setup/teardown Next'in DIŞINDA, doğrudan Node ile çalışıyor —
-// SUPABASE_SERVICE_ROLE_KEY gibi değişkenlere onlar da ihtiyaç duyuyor.
+// Next.js dev sunucusu .env.local'i kendisi okur; global-setup/teardown ise
+// Node ile doğrudan çalışır ve AUTH_SECRET'a onlar da ihtiyaç duyar. Testler
+// yerel Postgres modunda (DATABASE_URL tanımlı) çalışır.
 process.loadEnvFile?.(".env.local");
 
 export default defineConfig({

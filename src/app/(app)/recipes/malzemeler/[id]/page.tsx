@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 
 import { SubmitButton } from "@/components/ui/form";
 import { deleteConversion } from "@/lib/recipes/actions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 import { AddConversionForm, EditIngredientForm } from "../ingredient-forms";
 

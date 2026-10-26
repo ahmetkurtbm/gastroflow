@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 
-import { signOut } from "@/lib/auth/actions";
+import { signInAsDemo, signOut } from "@/lib/auth/actions";
+import { DEMO_ACCOUNTS } from "@/lib/auth/demo-accounts";
 import { getAppUser, getAuthUserId } from "@/lib/auth/current-user";
+import { isDemoMode } from "@/lib/db/mode";
 import { LanguageSwitcher } from "@/lib/i18n/language-switcher";
 import { getServerDictionary } from "@/lib/i18n/server";
 
@@ -58,7 +60,27 @@ export default async function LoginPage() {
           )}
         </div>
 
-        <p className="mt-6 text-center text-xs text-ink-muted">{dict.login.noAccount}</p>
+        {isDemoMode() && !signedInWithoutMembership ? (
+          <div className="mt-6 rounded-xl border border-brand-600/30 bg-brand-600/5 p-4">
+            <h2 className="text-sm font-semibold text-ink">{dict.login.demoTitle}</h2>
+            <form action={signInAsDemo} className="mt-3 grid grid-cols-2 gap-2">
+              {DEMO_ACCOUNTS.map((account) => (
+                <button
+                  key={account.role}
+                  type="submit"
+                  name="role"
+                  value={account.role}
+                  className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm font-medium text-ink transition-colors hover:border-brand-600 hover:text-brand-700"
+                >
+                  {dict.role[account.role]}
+                </button>
+              ))}
+            </form>
+            <p className="mt-3 text-xs leading-relaxed text-ink-muted">{dict.login.demoHint}</p>
+          </div>
+        ) : (
+          <p className="mt-6 text-center text-xs text-ink-muted">{dict.login.noAccount}</p>
+        )}
       </div>
     </main>
   );

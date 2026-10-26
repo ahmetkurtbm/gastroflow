@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 // Türkiye 2016'dan beri sabit UTC+3; yaz saati hesabına gerek yok.
 const ISTANBUL_UTC_OFFSET_HOURS = 3;

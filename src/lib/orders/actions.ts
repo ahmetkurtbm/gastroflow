@@ -9,7 +9,7 @@ import { z } from "zod";
 import { allocateProportional, money, toLira } from "@/core/money";
 import { currentPrices } from "@/core/pricing";
 import { requireAppUser } from "@/lib/auth/current-user";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 // `client_key` çift gönderime karşı korur: offline kuyruk aynı mutasyonu
 // tekrar denediğinde `(order_id, client_key)` unique kısıtına takılır.

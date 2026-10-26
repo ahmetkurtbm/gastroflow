@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { requireAppUser } from "@/lib/auth/current-user";
 import { parseWorkbookRows, type ImportResult } from "@/lib/excel/workbook";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 function fail(error: unknown): ImportResult {
   if (error instanceof z.ZodError) {

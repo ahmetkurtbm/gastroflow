@@ -1,12 +1,15 @@
 #!/usr/bin/env node
 // Yük testi: WAITERS sanal garson aynı anda adisyon açar, ürün ekler, mutfağa
-// gönderir ve öder. Darboğaz veritabanı/RLS olduğu için doğrudan PostgREST'e
-// karşı çalışır. Kendi geçici kiracısını oluşturur ve sonunda siler.
+// gönderir ve öder. Darboğaz veritabanı/RLS olduğu için doğrudan uygulamanın
+// veritabanı API'sine (yerel Postgres modu) karşı çalışır. Kendi geçici
+// kiracısını oluşturur ve sonunda siler.
 //
 // Kullanım: node scripts/load-test.mjs [--waiters=15] [--rounds=4] [--lines=3]
 
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
+
+import { ANON_KEY, serviceRoleKey } from "../src/lib/db/jwt.ts";
 
 const args = Object.fromEntries(
   process.argv.slice(2).map((a) => {
@@ -20,18 +23,10 @@ const ROUNDS = Number(args.rounds ?? 4);
 const LINES_PER_ORDER = Number(args.lines ?? 3);
 const PRICE = 100;
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const API_URL = `${process.env.GASTROFLOW_URL ?? "http://localhost:3000"}/api/db`;
+const SERVICE_ROLE_KEY = serviceRoleKey();
 
-if (!SUPABASE_URL || !ANON_KEY || !SERVICE_ROLE_KEY) {
-  console.error(
-    "Eksik ortam değişkeni: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, SUPABASE_SERVICE_ROLE_KEY gerekli (.env.local'dan yükle).",
-  );
-  process.exit(1);
-}
-
-const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+const admin = createClient(API_URL, SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
@@ -257,7 +252,7 @@ async function main() {
   const ctx = await setup();
   console.log(`Kiracı hazır: ${ctx.tenant.id} (${WAITERS} masa, 1 patron)`);
 
-  const client = createClient(SUPABASE_URL, ANON_KEY);
+  const client = createClient(API_URL, ANON_KEY, { auth: { persistSession: false } });
   const { error: signInError } = await client.auth.signInWithPassword({
     email: ctx.email,
     password: ctx.password,

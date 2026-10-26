@@ -6,7 +6,7 @@ import ExcelJS from "exceljs";
 import { expect, test } from "@playwright/test";
 
 import { login } from "./helpers";
-import { adminClient, type TestTenant } from "./supabase-admin";
+import { adminClient, type TestTenant } from "./db-admin";
 
 const STATE_PATH = path.join(__dirname, ".state.json");
 

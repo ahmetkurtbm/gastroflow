@@ -1,7 +1,7 @@
 import { loadSellableCombos, type SellableCombo } from "@/lib/combos/queries";
 import { loadSellableMenu } from "@/lib/orders/queries";
 import type { MenuCategory } from "@/lib/orders/types";
-import { createServiceRoleClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/db/client";
 
 export type QrTable = {
   id: string;

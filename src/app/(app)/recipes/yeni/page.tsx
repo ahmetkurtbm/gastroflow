@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 import { NewRecipeForm } from "./new-recipe-form";
 

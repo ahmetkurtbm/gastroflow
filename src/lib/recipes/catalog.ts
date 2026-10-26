@@ -7,8 +7,8 @@ import {
 } from "@/core/recipe";
 import { currentPrices } from "@/core/pricing";
 import type { UnitConversion } from "@/core/units";
-import { createClient } from "@/lib/supabase/server";
-import type { Database } from "@/lib/supabase/database.types";
+import { createClient } from "@/lib/db/client";
+import type { Database } from "@/lib/db/database.types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**

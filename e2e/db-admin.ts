@@ -1,18 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 
-function env(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`e2e: eksik ortam değişkeni ${name}`);
-  return value;
-}
+import { serviceRoleKey } from "../src/lib/db/jwt";
+
+// Uygulamanın veritabanı API'si yalnızca yerel Postgres modunda dışarı açıktır.
+export const API_URL = `${process.env.E2E_BASE_URL ?? "http://localhost:3100"}/api/db`;
 
 export function adminClient() {
-  return createClient(
-    env("NEXT_PUBLIC_SUPABASE_URL"),
-    env("SUPABASE_SERVICE_ROLE_KEY"),
-    { auth: { persistSession: false, autoRefreshToken: false } },
-  );
+  return createClient(API_URL, serviceRoleKey(), {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
 export type TestTenant = {

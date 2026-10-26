@@ -40,6 +40,8 @@ export type Dictionary = {
     submit: string;
     submitting: string;
     noAccount: string;
+    demoTitle: string;
+    demoHint: string;
   };
   pos: {
     floorTitle: string;
@@ -101,6 +103,8 @@ const tr: Dictionary = {
     submit: "Giriş yap",
     submitting: "Giriş yapılıyor…",
     noAccount: "Hesabınız yoksa işletme yöneticinize başvurun. Bu sisteme kendi kendine kayıt olunamaz.",
+    demoTitle: "Demo: bir rolle giriş yap",
+    demoHint: "Demo verisi birkaç saatte bir sıfırlanır. Tüm hesapların şifresi demo1234.",
   },
   pos: {
     floorTitle: "Salon",
@@ -164,6 +168,8 @@ const en: Dictionary = {
     submit: "Sign in",
     submitting: "Signing in…",
     noAccount: "If you don't have an account, ask your business admin. Self-registration isn't available.",
+    demoTitle: "Demo: sign in as a role",
+    demoHint: "Demo data resets every few hours. Every account's password is demo1234.",
   },
   pos: {
     floorTitle: "Floor",

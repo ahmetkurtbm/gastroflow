@@ -5,8 +5,9 @@ import { z } from "zod";
 
 import { APP_ROLES } from "@/lib/auth/access";
 import { requireAppUser } from "@/lib/auth/current-user";
-import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { createClient, createServiceRoleClient } from "@/lib/db/client";
 
+import { processNotificationOutbox } from "./process-queue";
 import { EVENT_TYPES } from "./queries";
 
 export type ActionState = { error?: string; ok?: boolean; processed?: number };
@@ -59,24 +60,17 @@ export async function updateNotificationRule(
   return { ok: true };
 }
 
-/** Bildirim kuyruğunu elle işletir (yalnızca patron). Kuyruk tüm kiracıları kapsar. */
+/** Patronun kendi işletmesine ait bildirim kuyruğunu işletir. */
 export async function processNotificationQueue(): Promise<ActionState> {
   try {
     const user = await requireAppUser();
     if (user.role !== "owner") return { error: "Bu işlemi yapma yetkin yok." };
     const supabase = createServiceRoleClient();
 
-    const { data, error } = await supabase.functions.invoke("process-notifications", {
-      method: "POST",
-    });
-
-    if (error) {
-      console.error("Bildirim kuyruğu işlenemedi:", error);
-      return { error: "Bildirim kuyruğu işlenemedi." };
-    }
+    const { processed } = await processNotificationOutbox(supabase, user.tenantId);
 
     revalidatePath("/settings", "layout");
-    return { ok: true, processed: data?.processed ?? 0 };
+    return { ok: true, processed };
   } catch (error) {
     return fail(error);
   }

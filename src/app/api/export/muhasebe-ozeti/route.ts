@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requirePathAccess } from "@/lib/auth/current-user";
 import { buildWorkbookBuffer } from "@/lib/excel/workbook";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 const COLUMNS = [
   { header: "Tarih", key: "date", width: 14 },

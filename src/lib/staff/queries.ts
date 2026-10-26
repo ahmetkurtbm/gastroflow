@@ -1,6 +1,6 @@
 import { requireAppUser } from "@/lib/auth/current-user";
 import type { AppRole } from "@/lib/auth/access";
-import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { createClient, createServiceRoleClient } from "@/lib/db/client";
 
 export type StaffMember = {
   id: string;

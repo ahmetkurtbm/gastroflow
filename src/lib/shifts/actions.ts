@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { requireAppUser } from "@/lib/auth/current-user";
 import { addDaysToDateStr, istanbulWallTimeToUtcIso } from "@/lib/shifts/queries";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 /** `<input type="datetime-local">`'ın "YYYY-MM-DDTHH:mm" çıktısını UTC'ye çevirir. */
 function datetimeLocalToUtcIso(value: string): string {

@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { ROLE_LABEL, type AppRole } from "@/lib/auth/access";
 import { requireAppUser } from "@/lib/auth/current-user";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 export const metadata: Metadata = { title: "Genel Bakış" };
 

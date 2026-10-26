@@ -18,7 +18,8 @@ export const APP_ROLES = [
 export type AppRole = (typeof APP_ROLES)[number];
 
 /** Oturum gerektirmeyen yollar. `/siparis` QR müşteri ekranıdır; sınırı `qr_token`. */
-const PUBLIC_PATHS = ["/", "/login", "/auth", "/siparis"] as const;
+// /api/db kendi yetki kontrolünü yapar (bkz. src/app/api/db).
+const PUBLIC_PATHS = ["/", "/login", "/siparis", "/api/db"] as const;
 
 /** Her rolün giriş sonrası düşeceği ekran. */
 export const ROLE_HOME: Record<AppRole, string> = {

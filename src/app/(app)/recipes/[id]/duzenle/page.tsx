@@ -11,7 +11,7 @@ import {
   publishVersion,
 } from "@/lib/recipes/actions";
 import { loadCatalog, safeCost } from "@/lib/recipes/catalog";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 import { AddLineForm, type ComponentOption } from "./add-line-form";
 

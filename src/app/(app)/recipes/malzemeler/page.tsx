@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ExcelImportForm } from "@/components/ui/excel-import-form";
 import { formatRate } from "@/core/money";
 import { importIngredients } from "@/lib/recipes/actions";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 import { CreateIngredientForm } from "./ingredient-forms";
 

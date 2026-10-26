@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 
-import type { TestTenant } from "./supabase-admin";
+import type { TestTenant } from "./db-admin";
 
 export async function login(page: Page, tenant: Pick<TestTenant, "email" | "password">) {
   await page.goto("/login");

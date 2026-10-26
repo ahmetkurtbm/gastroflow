@@ -7,7 +7,7 @@ import { z } from "zod";
 
 import { allocateProportional, money, toLira } from "@/core/money";
 import { currentPrices } from "@/core/pricing";
-import { createServiceRoleClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/db/client";
 
 export type ActionState = { error?: string; ok?: boolean };
 

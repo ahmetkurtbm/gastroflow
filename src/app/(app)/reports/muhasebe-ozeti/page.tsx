@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { formatMoney, money } from "@/core/money";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 export const metadata: Metadata = { title: "Muhasebe Özeti" };
 

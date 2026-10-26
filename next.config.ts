@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+
 import type { NextConfig } from "next";
 
 // CSP her istekte yeni nonce gerektirdiği için src/proxy.ts içinde üretilir.
@@ -18,6 +20,21 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+
+  // AUTH_SECRET verilmezse oturum token'ları bu build'e özgü anahtarla imzalanır.
+  env: { GASTROFLOW_BUILD_SECRET: randomBytes(32).toString("hex") },
+
+  serverExternalPackages: ["@electric-sql/pglite", "pg"],
+
+  // Migration ve tohum dosyaları çalışma anında okunur; sunucu paketine dahil edilmeli.
+  outputFileTracingIncludes: {
+    "/**/*": [
+      "./db/compat.sql",
+      "./db/seed.sql",
+      "./db/migrations/*.sql",
+      "./node_modules/@electric-sql/pglite/dist/{pglite.wasm,pglite.data,initdb.wasm,pgcrypto.tar.gz,citext.tar.gz}",
+    ],
+  },
 
   typescript: { ignoreBuildErrors: false },
 

@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { clientEnv } from "@/lib/env";
-import { updateSession } from "@/lib/supabase/session";
+import { updateSession } from "@/lib/db/session";
 import {
   ROLE_HOME,
   canAccessPath,
@@ -10,12 +9,9 @@ import {
 } from "@/lib/auth/access";
 
 /**
- * Her istekte CSP nonce'u üretir, Supabase oturumunu tazeler ve rol bazlı
+ * Her istekte CSP nonce'u üretir, oturumu tazeler ve rol bazlı
  * yönlendirme yapar. Yönlendirme güvenlik katmanı değildir; veriyi RLS korur.
  */
-
-const SUPABASE_ORIGIN = new URL(clientEnv.NEXT_PUBLIC_SUPABASE_URL).origin;
-const SUPABASE_WS_ORIGIN = SUPABASE_ORIGIN.replace(/^https/, "wss");
 
 function generateNonce() {
   const bytes = new Uint8Array(16);
@@ -30,9 +26,9 @@ function buildCsp(nonce: string, isDev: boolean) {
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     // Tailwind ve Next satır içi stil ürettiği için style-src unsafe-inline.
     "style-src 'self' 'unsafe-inline'",
-    `img-src 'self' blob: data: ${SUPABASE_ORIGIN}`,
+    "img-src 'self' blob: data:",
     "font-src 'self' data:",
-    `connect-src 'self' ${SUPABASE_ORIGIN} ${SUPABASE_WS_ORIGIN}`,
+    "connect-src 'self'",
     "worker-src 'self' blob:",
     "manifest-src 'self'",
     "frame-ancestors 'none'",

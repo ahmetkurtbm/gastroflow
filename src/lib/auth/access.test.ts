@@ -16,7 +16,7 @@ describe("isPublicPath", () => {
   it("giriş ve kök yolu herkese açıktır", () => {
     expect(isPublicPath("/")).toBe(true);
     expect(isPublicPath("/login")).toBe(true);
-    expect(isPublicPath("/auth/callback")).toBe(true);
+    expect(isPublicPath("/api/db/storage/v1/object/public/menu-images/a.png")).toBe(true);
   });
 
   it("korumalı yolları açık saymaz", () => {

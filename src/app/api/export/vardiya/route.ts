@@ -8,7 +8,7 @@ import {
   mondayOfWeek,
   todayIstanbulDateStr,
 } from "@/lib/shifts/queries";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 const COLUMNS = [
   { header: "Personel", key: "staff", width: 24 },

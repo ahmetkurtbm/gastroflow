@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { currentPrices } from "@/core/pricing";
 import { requirePathAccess } from "@/lib/auth/current-user";
 import { buildWorkbookBuffer } from "@/lib/excel/workbook";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 
 const COLUMNS = [
   { header: "Ürün Adı", key: "name", width: 30 },

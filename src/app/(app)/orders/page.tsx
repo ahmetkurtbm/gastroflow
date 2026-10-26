@@ -8,13 +8,13 @@ import { OrdersBoard } from "./orders-board";
 export const metadata: Metadata = { title: "Siparişler" };
 
 export default async function OrdersPage() {
-  const user = await requireAppUser();
+  await requireAppUser();
   const orders = await loadOpenOrdersTracking();
 
   return (
     <div>
       <h1 className="mb-6 text-2xl font-bold tracking-tight text-ink">Siparişler</h1>
-      <OrdersBoard initialOrders={orders} tenantId={user.tenantId} />
+      <OrdersBoard orders={orders} />
     </div>
   );
 }
