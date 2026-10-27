@@ -2,10 +2,13 @@ import { BarChart3, ChefHat, Package, QrCode } from "lucide-react";
 import type { Metadata } from "next";
 
 import { BrandMark, BrandName } from "@/components/brand";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 import { signInAsDemo, signOut } from "@/lib/auth/actions";
 import { DEMO_ACCOUNTS } from "@/lib/auth/demo-accounts";
 import { getAppUser, getAuthUserId } from "@/lib/auth/current-user";
 import { isDemoMode } from "@/lib/db/mode";
+import { THEME_COOKIE, parseTheme } from "@/lib/theme";
+import { cookies } from "next/headers";
 import { LanguageSwitcher } from "@/lib/i18n/language-switcher";
 import { getServerDictionary } from "@/lib/i18n/server";
 
@@ -23,6 +26,7 @@ export default async function LoginPage() {
     getServerDictionary(),
   ]);
   const signedInWithoutMembership = authUserId !== null && appUser === null;
+  const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
 
   const features = [
     { icon: QrCode, text: dict.login.panelFeatures[0] },
@@ -67,7 +71,10 @@ export default async function LoginPage() {
               <BrandMark size={30} />
               <BrandName className="text-lg text-ink" />
             </div>
-            <LanguageSwitcher locale={locale} />
+            <div className="flex items-center gap-2">
+              <ThemeSwitcher initial={theme} />
+              <LanguageSwitcher locale={locale} />
+            </div>
           </div>
 
           <h1 className="text-2xl font-semibold tracking-tight text-ink">{dict.login.submit}</h1>
@@ -108,7 +115,7 @@ export default async function LoginPage() {
                     type="submit"
                     name="role"
                     value={account.role}
-                    className="min-h-11 rounded-lg border border-line bg-surface px-3 text-sm font-medium text-ink transition-colors duration-150 hover:border-brand-500 hover:bg-brand-50 hover:text-brand-700 dark:hover:bg-white/5"
+                    className="min-h-11 rounded-lg border border-line bg-surface px-3 text-sm font-medium text-ink transition-colors duration-150 hover:border-brand-500 hover:bg-brand-500/10 hover:text-brand-700"
                   >
                     {dict.role[account.role]}
                   </button>

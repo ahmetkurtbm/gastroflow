@@ -5,6 +5,7 @@ import { AppNav } from "@/components/app-nav";
 import { BrandMark, BrandName } from "@/components/brand";
 import { GlobalSyncIndicator } from "@/components/global-sync-indicator";
 import { MobileNavDrawer } from "@/components/mobile-nav-drawer";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 import { navFor } from "@/lib/auth/access";
 import { signOut } from "@/lib/auth/actions";
 import { requireAppUser } from "@/lib/auth/current-user";
@@ -13,6 +14,8 @@ import { getServerDictionary } from "@/lib/i18n/server";
 import { LanguageSwitcher } from "@/lib/i18n/language-switcher";
 import { I18nProvider } from "@/lib/i18n/provider";
 import { createClient } from "@/lib/db/client";
+import { THEME_COOKIE, parseTheme } from "@/lib/theme";
+import { cookies } from "next/headers";
 
 const NAV_KEY_BY_HREF: Record<string, keyof Dictionary["nav"]> = {
   "/pos": "pos",
@@ -36,6 +39,7 @@ export default async function AppLayout({
   const user = await requireAppUser();
   const supabase = await createClient();
   const { locale, dict } = await getServerDictionary();
+  const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
 
   const [tenantResult, branchResult, profileResult] = await Promise.all([
     supabase.from("tenants").select("name").maybeSingle(),
@@ -84,6 +88,7 @@ export default async function AppLayout({
           </div>
           <div className="flex shrink-0 items-center gap-2 pr-1">
             <GlobalSyncIndicator />
+            <ThemeSwitcher initial={theme} tone="dark" />
             <LanguageSwitcher locale={locale} tone="dark" />
           </div>
         </div>
@@ -104,7 +109,8 @@ export default async function AppLayout({
 
           <div className="flex items-center justify-between gap-2 px-4 pb-3">
             <GlobalSyncIndicator />
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              <ThemeSwitcher initial={theme} tone="dark" />
               <LanguageSwitcher locale={locale} tone="dark" />
             </div>
           </div>

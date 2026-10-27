@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Fira_Code, Fira_Sans } from "next/font/google";
+import { cookies } from "next/headers";
+
+import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 
 import "./globals.css";
 
@@ -38,12 +41,15 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
+
   return (
     <html
       lang="tr"
+      data-theme={theme === "system" ? undefined : theme}
       className={`${sans.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col font-sans">

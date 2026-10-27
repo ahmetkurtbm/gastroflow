@@ -52,10 +52,15 @@
   --line: #e2e8f0;
   /* Grafik sütunu; dataviz doğrulayıcısından geçen ton. */
   --chart-bar: #c2410c;
+  color-scheme: light;
 }
 
+/*
+  Koyu tema: kullanıcı seçtiyse `data-theme="dark"`, seçmediyse cihaz ayarı.
+  `data-theme="light"` cihaz koyu olsa da açık temada tutar.
+*/
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --surface: #0b1220;
     --surface-raised: #111a2b;
     --surface-sunken: #0a101c;
@@ -63,13 +68,30 @@
     --ink-muted: #a3b0c2;
     --line: #243044;
     --chart-bar: #ea580c;
+    color-scheme: dark;
   }
+}
 
-  /* Koyu zeminde marka rengindeki metin okunur kalsın; düğme zeminleri değişmez. */
-  .text-brand-600,
-  .text-brand-700 {
+:root[data-theme="dark"] {
+  --surface: #0b1220;
+  --surface-raised: #111a2b;
+  --surface-sunken: #0a101c;
+  --ink: #f1f5f9;
+  --ink-muted: #a3b0c2;
+  --line: #243044;
+  --chart-bar: #ea580c;
+  color-scheme: dark;
+}
+
+/* Koyu zeminde marka rengindeki metin okunur kalsın; düğme zeminleri değişmez. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) :is(.text-brand-600, .text-brand-700) {
     color: var(--color-brand-400);
   }
+}
+
+:root[data-theme="dark"] :is(.text-brand-600, .text-brand-700) {
+  color: var(--color-brand-400);
 }
 
 @theme inline {
