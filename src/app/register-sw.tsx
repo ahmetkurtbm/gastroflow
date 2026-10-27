@@ -6,7 +6,7 @@ import { useEffect } from "react";
 export function RegisterServiceWorker() {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
-    navigator.serviceWorker.register("/sw.js").catch((error) => {
+    navigator.serviceWorker.register(process.env.NODE_ENV === "development" ? "/sw.js?dev=1" : "/sw.js").catch((error) => {
       console.error("Service worker kaydı başarısız:", error);
     });
   }, []);

@@ -4,28 +4,39 @@
   Tasarım notu: bu arayüz aydınlık bir mutfakta, yağlı parmakla, koşarken
   kullanılacak. Öncelikler sırasıyla: okunaklılık, dokunma hedefi büyüklüğü,
   yüksek kontrast. Süs en sonda.
+
+  Stil: sade, ızgaraya dayalı (Swiss). Soğuk gri yüzeyler, tek bir sıcak
+  marka rengi, koyu kenar çubuğu. Beyaz yazılı düğmelerde marka 600 tonu
+  kullanılır; 500 tonu beyazla 4.5:1 kontrastı sağlamaz.
 */
 
 @theme {
-  /* Marka — sıcak amber. Yemek sektörüne yakın, mavi kurumsal tondan uzak. */
-  --color-brand-50: oklch(0.98 0.02 85);
-  --color-brand-100: oklch(0.95 0.05 85);
-  --color-brand-200: oklch(0.9 0.09 82);
-  --color-brand-300: oklch(0.84 0.13 78);
-  --color-brand-400: oklch(0.78 0.16 70);
-  --color-brand-500: oklch(0.71 0.18 58);
-  --color-brand-600: oklch(0.63 0.17 50);
-  --color-brand-700: oklch(0.53 0.14 46);
-  --color-brand-800: oklch(0.44 0.11 45);
-  --color-brand-900: oklch(0.37 0.09 45);
+  /* Marka — paprika turuncusu. */
+  --color-brand-50: #fff7ed;
+  --color-brand-100: #ffedd5;
+  --color-brand-200: #fed7aa;
+  --color-brand-300: #fdba74;
+  --color-brand-400: #fb923c;
+  --color-brand-500: #ea580c;
+  --color-brand-600: #c2410c;
+  --color-brand-700: #9a3412;
+  --color-brand-800: #7c2d12;
+  --color-brand-900: #5c210d;
 
-  /* Durum renkleri — stok uyarıları ve sipariş gecikmeleri için */
-  --color-ok: oklch(0.65 0.16 155);
-  --color-warn: oklch(0.75 0.16 75);
-  --color-danger: oklch(0.6 0.21 25);
+  /* Durum renkleri — metin olarak da kullanıldıkları için beyaz zeminde ≥4.5:1. */
+  --color-ok: #15803d;
+  --color-warn: #b45309;
+  --color-danger: #dc2626;
 
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-mono-stack), ui-monospace, monospace;
+  --font-sans: var(--font-fira-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-fira-code), ui-monospace, monospace;
+
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.625rem;
+  --radius-2xl: 0.875rem;
+
+  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.06);
+  --shadow-xl: 0 16px 40px -12px rgb(15 23 42 / 0.35);
 }
 
 /*
@@ -33,22 +44,31 @@
   böylece açık/koyu geçişinde tek yerden çevriliyor.
 */
 :root {
-  --surface: oklch(0.99 0.002 90);
-  --surface-raised: oklch(1 0 0);
-  --surface-sunken: oklch(0.96 0.004 90);
-  --ink: oklch(0.22 0.01 60);
-  --ink-muted: oklch(0.52 0.012 60);
-  --line: oklch(0.9 0.005 80);
+  --surface: #f8fafc;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f1f5f9;
+  --ink: #0f172a;
+  --ink-muted: #475569;
+  --line: #e2e8f0;
+  /* Grafik sütunu; dataviz doğrulayıcısından geçen ton. */
+  --chart-bar: #c2410c;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --surface: oklch(0.19 0.008 65);
-    --surface-raised: oklch(0.24 0.009 65);
-    --surface-sunken: oklch(0.15 0.007 65);
-    --ink: oklch(0.95 0.004 80);
-    --ink-muted: oklch(0.7 0.008 75);
-    --line: oklch(0.33 0.01 65);
+    --surface: #0b1220;
+    --surface-raised: #111a2b;
+    --surface-sunken: #0a101c;
+    --ink: #f1f5f9;
+    --ink-muted: #a3b0c2;
+    --line: #243044;
+    --chart-bar: #ea580c;
+  }
+
+  /* Koyu zeminde marka rengindeki metin okunur kalsın; düğme zeminleri değişmez. */
+  .text-brand-600,
+  .text-brand-700 {
+    color: var(--color-brand-400);
   }
 }
 
@@ -64,6 +84,18 @@
 body {
   background: var(--surface);
   color: var(--ink);
+  font-feature-settings: "tnum" 1;
+}
+
+button,
+[role="button"],
+summary,
+label[for] {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
 }
 
 /* Klavye ile gezinenler için görünür odak halkası — erişilebilirlik. */
@@ -73,6 +105,20 @@ body {
   border-radius: 4px;
 }
 
+/* Form alanları: odakta marka renginde ince halka (kenarlık + gölge). */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--color-brand-500);
+  box-shadow: 0 0 0 3px rgb(234 88 12 / 0.2);
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--color-brand-600);
+}
+
 /* Dokunmatik cihazda çift dokunma ile yakınlaşmayı engelle: POS ekranında
    hızlı ardışık dokunuşlar yanlışlıkla zoom tetikliyor. */
 @media (pointer: coarse) {
@@ -80,5 +126,14 @@ body {
   a,
   [role="button"] {
     touch-action: manipulation;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

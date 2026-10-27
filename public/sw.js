@@ -2,7 +2,7 @@
 // önbellekten açılabilir; hiç ziyaret edilmemiş sayfa offline açılamaz.
 // Server Action'lar (POST) önbelleğe alınmaz; mutasyonları src/lib/offline yönetir.
 
-const CACHE_VERSION = "gastroflow-shell-v1";
+const CACHE_VERSION = "gastroflow-shell-v2";
 
 const PRECACHE_URLS = ["/manifest.webmanifest", "/icon.svg", "/offline.html"];
 
@@ -30,9 +30,13 @@ function isSameOrigin(url) {
   return new URL(url).origin === self.location.origin;
 }
 
-// _next/static varlıkları içerik hash'li ve değişmez.
+// Geliştirme sunucusunda kayıt `?dev=1` ile yapılır: oradaki _next/static
+// adları içerik hash'i taşımaz, önbellekten verilirse eski CSS/JS görünür.
+const IS_DEV = new URL(self.location.href).searchParams.has("dev");
+
+// Production'da _next/static varlıkları içerik hash'li ve değişmez.
 function isImmutableAsset(url) {
-  return new URL(url).pathname.startsWith("/_next/static/");
+  return !IS_DEV && new URL(url).pathname.startsWith("/_next/static/");
 }
 
 self.addEventListener("fetch", (event) => {

@@ -1,6 +1,8 @@
+import { LogOut } from "lucide-react";
 import Link from "next/link";
 
 import { AppNav } from "@/components/app-nav";
+import { BrandMark, BrandName } from "@/components/brand";
 import { GlobalSyncIndicator } from "@/components/global-sync-indicator";
 import { MobileNavDrawer } from "@/components/mobile-nav-drawer";
 import { navFor } from "@/lib/auth/access";
@@ -52,14 +54,22 @@ export default async function AppLayout({
     label: dict.nav[NAV_KEY_BY_HREF[item.href]] ?? item.label,
   }));
 
+  const initials = fullName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]!.toLocaleUpperCase("tr"))
+    .join("");
+
   return (
     <I18nProvider locale={locale} dict={dict}>
       <div className="flex min-h-full flex-col md:flex-row">
         {/* Mobil üst çubuk ve açılır menü. */}
-        <div className="flex items-center justify-between border-b border-line bg-surface-raised px-3 py-2.5 md:hidden">
-          <div className="flex min-w-0 items-center gap-2">
+        <div className="sticky top-0 z-30 flex items-center justify-between bg-slate-900 px-2 py-1.5 md:hidden">
+          <div className="flex min-w-0 items-center gap-1">
             <MobileNavDrawer
               items={navItems}
+              groupLabels={dict.navGroup}
               tenantName={tenantName}
               branchName={branchName}
               fullName={fullName}
@@ -67,51 +77,64 @@ export default async function AppLayout({
               signOutLabel={dict.shell.signOut}
               onSignOut={signOut}
             />
-            <Link href="/" className="truncate text-base font-bold tracking-tight text-ink">
-              Gastro<span className="text-brand-600">Flow</span>
+            <Link href="/" className="flex min-w-0 items-center gap-2">
+              <BrandMark size={26} />
+              <BrandName className="truncate text-base text-white" />
             </Link>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2 pr-1">
             <GlobalSyncIndicator />
-            <LanguageSwitcher locale={locale} />
+            <LanguageSwitcher locale={locale} tone="dark" />
           </div>
         </div>
 
-        <aside className="hidden bg-surface-raised md:block md:w-56 md:shrink-0 md:border-r md:border-line">
-          <div className="px-4 py-4">
-            <Link href="/" className="block">
-              <span className="text-lg font-bold tracking-tight text-ink">
-                Gastro<span className="text-brand-600">Flow</span>
-              </span>
-            </Link>
-            <p className="mt-1 truncate text-xs text-ink-muted">
-              {tenantName}
-              {branchName ? ` · ${branchName}` : ""}
-            </p>
+        <aside className="hidden bg-slate-900 md:sticky md:top-0 md:flex md:h-dvh md:w-60 md:shrink-0 md:flex-col">
+          <Link href="/" className="flex items-center gap-2.5 px-5 pb-2 pt-5">
+            <BrandMark size={30} />
+            <BrandName className="text-lg text-white" />
+          </Link>
+          <p className="truncate px-5 text-xs text-slate-400">
+            {tenantName}
+            {branchName ? ` · ${branchName}` : ""}
+          </p>
+
+          <div className="flex-1 overflow-y-auto [scrollbar-color:rgb(255_255_255/0.15)_transparent] [scrollbar-width:thin]">
+            <AppNav items={navItems} groupLabels={dict.navGroup} />
           </div>
 
-          <AppNav items={navItems} />
-        </aside>
-
-        <div className="flex min-w-0 flex-1 flex-col">
-          <header className="hidden items-center justify-end gap-3 border-b border-line px-4 py-3 md:flex">
+          <div className="flex items-center justify-between gap-2 px-4 pb-3">
             <GlobalSyncIndicator />
-            <LanguageSwitcher locale={locale} />
-            <div className="text-right leading-tight">
-              <p className="text-sm font-medium text-ink">{fullName}</p>
-              <p className="text-xs text-ink-muted">{dict.role[user.role]}</p>
+            <div className="ml-auto">
+              <LanguageSwitcher locale={locale} tone="dark" />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 border-t border-white/10 px-4 py-3">
+            <span
+              aria-hidden="true"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-semibold text-white"
+            >
+              {initials || "?"}
+            </span>
+            <div className="min-w-0 flex-1 leading-tight">
+              <p className="truncate text-sm font-medium text-white">{fullName}</p>
+              <p className="truncate text-xs text-slate-400">{dict.role[user.role]}</p>
             </div>
             <form action={signOut}>
               <button
                 type="submit"
-                className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink"
+                aria-label={dict.shell.signOut}
+                title={dict.shell.signOut}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
               >
-                {dict.shell.signOut}
+                <LogOut size={17} aria-hidden="true" />
               </button>
             </form>
-          </header>
+          </div>
+        </aside>
 
-          <main className="min-w-0 flex-1 p-4 md:p-6">{children}</main>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <main className="min-w-0 flex-1 p-4 md:p-8">{children}</main>
         </div>
       </div>
     </I18nProvider>

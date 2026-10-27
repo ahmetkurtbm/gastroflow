@@ -1,19 +1,20 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Fira_Code, Fira_Sans } from "next/font/google";
 
 import "./globals.css";
 
 import { RegisterServiceWorker } from "./register-sw";
 
-const inter = Inter({
-  variable: "--font-inter",
+const sans = Fira_Sans({
+  variable: "--font-fira-sans",
   subsets: ["latin", "latin-ext"], // latin-ext: Türkçe ğ, ş, ı, İ
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const mono = JetBrains_Mono({
-  variable: "--font-mono-stack",
-  subsets: ["latin"],
+const mono = Fira_Code({
+  variable: "--font-fira-code",
+  subsets: ["latin", "latin-ext"],
   display: "swap",
 });
 
@@ -30,7 +31,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f0d0b",
+  themeColor: "#0f172a",
   // POS ekranında yanlışlıkla yakınlaşmayı önlemek için, ama erişilebilirlik
   // adına kullanıcının kendi isteğiyle yakınlaşmasını engellemiyoruz.
   width: "device-width",
@@ -43,7 +44,7 @@ export default function RootLayout({
   return (
     <html
       lang="tr"
-      className={`${inter.variable} ${mono.variable} h-full antialiased`}
+      className={`${sans.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col font-sans">
         <RegisterServiceWorker />

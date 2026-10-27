@@ -23,6 +23,7 @@ export type Dictionary = {
     audit: string;
     settings: string;
   };
+  navGroup: { service: string; stock: string; admin: string };
   role: {
     owner: string;
     manager: string;
@@ -42,6 +43,8 @@ export type Dictionary = {
     noAccount: string;
     demoTitle: string;
     demoHint: string;
+    panelTitle: string;
+    panelFeatures: [string, string, string, string];
   };
   pos: {
     floorTitle: string;
@@ -83,6 +86,7 @@ const tr: Dictionary = {
     audit: "Loglar",
     settings: "Ayarlar",
   },
+  navGroup: { service: "Servis", stock: "Mutfak ve stok", admin: "Yönetim" },
   role: {
     owner: "Patron",
     manager: "Müdür",
@@ -105,6 +109,13 @@ const tr: Dictionary = {
     noAccount: "Hesabınız yoksa işletme yöneticinize başvurun. Bu sisteme kendi kendine kayıt olunamaz.",
     demoTitle: "Demo: bir rolle giriş yap",
     demoHint: "Demo verisi birkaç saatte bir sıfırlanır. Tüm hesapların şifresi demo1234.",
+    panelTitle: "Salondan mutfağa, kasadan depoya tek sistem.",
+    panelFeatures: [
+      "QR menü, masa ve paket siparişleri",
+      "Canlı mutfak ekranı ve gecikme takibi",
+      "Reçeteye göre otomatik stok düşümü",
+      "Kasa, onaylar ve günlük raporlar",
+    ],
   },
   pos: {
     floorTitle: "Salon",
@@ -148,6 +159,7 @@ const en: Dictionary = {
     audit: "Audit Log",
     settings: "Settings",
   },
+  navGroup: { service: "Service", stock: "Kitchen & stock", admin: "Management" },
   role: {
     owner: "Owner",
     manager: "Manager",
@@ -170,6 +182,13 @@ const en: Dictionary = {
     noAccount: "If you don't have an account, ask your business admin. Self-registration isn't available.",
     demoTitle: "Demo: sign in as a role",
     demoHint: "Demo data resets every few hours. Every account's password is demo1234.",
+    panelTitle: "One system from the dining room to the kitchen, till and storeroom.",
+    panelFeatures: [
+      "QR menu, table and takeaway orders",
+      "Live kitchen display with delay tracking",
+      "Automatic stock deduction from recipes",
+      "Cash register, approvals and daily reports",
+    ],
   },
   pos: {
     floorTitle: "Floor",
