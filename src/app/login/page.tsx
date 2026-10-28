@@ -2,6 +2,7 @@ import { BarChart3, ChefHat, Package, QrCode } from "lucide-react";
 import type { Metadata } from "next";
 
 import { BrandMark, BrandName } from "@/components/brand";
+import { InstallApp } from "@/components/install-app";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { signInAsDemo, signOut } from "@/lib/auth/actions";
 import { DEMO_ACCOUNTS } from "@/lib/auth/demo-accounts";
@@ -125,6 +126,17 @@ export default async function LoginPage() {
           ) : (
             <p className="mt-6 text-center text-xs text-ink-muted">{dict.login.noAccount}</p>
           )}
+
+          <section aria-labelledby="install-title" className="mt-6 flex items-start gap-4 rounded-xl border border-line bg-surface-raised p-5 shadow-sm">
+            <BrandMark size={48} />
+            <div className="min-w-0">
+              <h2 id="install-title" className="text-sm font-semibold text-ink">
+                {dict.install.title}
+              </h2>
+              <p className="mb-3 mt-1 text-xs leading-relaxed text-ink-muted">{dict.install.body}</p>
+              <InstallApp dict={dict.install} />
+            </div>
+          </section>
         </div>
       </div>
     </main>

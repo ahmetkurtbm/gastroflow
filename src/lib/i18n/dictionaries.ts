@@ -24,6 +24,15 @@ export type Dictionary = {
     settings: string;
   };
   navGroup: { service: string; stock: string; admin: string };
+  install: {
+    title: string;
+    body: string;
+    button: string;
+    installed: string;
+    iosShare: string;
+    iosAdd: string;
+    manual: string;
+  };
   role: {
     owner: string;
     manager: string;
@@ -87,6 +96,15 @@ const tr: Dictionary = {
     settings: "Ayarlar",
   },
   navGroup: { service: "Servis", stock: "Mutfak ve stok", admin: "Yönetim" },
+  install: {
+    title: "Telefona / tablete yükle",
+    body: "Mağaza gerekmez: ana ekrana eklenir, kendi simgesiyle tam ekran açılır.",
+    button: "Uygulamayı yükle",
+    installed: "Uygulama bu cihazda yüklü.",
+    iosShare: "Safari'de Paylaş düğmesine dokunun.",
+    iosAdd: "Ana Ekrana Ekle'yi seçip onaylayın.",
+    manual: "Tarayıcı menüsünden “Uygulamayı yükle” ya da “Ana ekrana ekle”yi seçin.",
+  },
   role: {
     owner: "Patron",
     manager: "Müdür",
@@ -160,6 +178,15 @@ const en: Dictionary = {
     settings: "Settings",
   },
   navGroup: { service: "Service", stock: "Kitchen & stock", admin: "Management" },
+  install: {
+    title: "Install on phone / tablet",
+    body: "No app store needed: it's added to your home screen and opens full screen with its own icon.",
+    button: "Install app",
+    installed: "The app is installed on this device.",
+    iosShare: "In Safari, tap the Share button.",
+    iosAdd: "Choose Add to Home Screen and confirm.",
+    manual: "Choose “Install app” or “Add to Home screen” from your browser menu.",
+  },
   role: {
     owner: "Owner",
     manager: "Manager",

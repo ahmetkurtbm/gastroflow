@@ -30,7 +30,12 @@ export const metadata: Metadata = {
   // Operasyon uygulaması; arama motorunda görünmesinin bir anlamı yok.
   robots: { index: false, follow: false },
   manifest: "/manifest.webmanifest",
-  icons: { icon: "/icon.svg" },
+  applicationName: "GastroFlow",
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  appleWebApp: { capable: true, title: "GastroFlow", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {

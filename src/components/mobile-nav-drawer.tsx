@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { AppNav } from "./app-nav";
+import { InstallApp } from "./install-app";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
 import { BrandMark, BrandName } from "./brand";
 
 /** Mobilde kenar çubuğu yerine açılır menü; masaüstüyle aynı `AppNav` kullanılır. */
@@ -17,6 +19,7 @@ export function MobileNavDrawer({
   fullName,
   roleLabel,
   signOutLabel,
+  installDict,
   onSignOut,
 }: {
   items: readonly { href: string; label: string }[];
@@ -26,6 +29,7 @@ export function MobileNavDrawer({
   fullName: string;
   roleLabel: string;
   signOutLabel: string;
+  installDict: Dictionary["install"];
   onSignOut: () => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
@@ -88,6 +92,11 @@ export function MobileNavDrawer({
 
             <div className="flex-1 overflow-y-auto">
               <AppNav items={items} groupLabels={groupLabels} />
+            </div>
+
+            <div className="border-t border-white/10 px-4 py-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">{installDict.title}</p>
+              <InstallApp dict={installDict} tone="dark" />
             </div>
 
             <div className="border-t border-white/10 px-4 py-3">

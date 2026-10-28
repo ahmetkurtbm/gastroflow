@@ -79,6 +79,7 @@ export default async function AppLayout({
               fullName={fullName}
               roleLabel={dict.role[user.role]}
               signOutLabel={dict.shell.signOut}
+              installDict={dict.install}
               onSignOut={signOut}
             />
             <Link href="/" className="flex min-w-0 items-center gap-2">
