@@ -21,12 +21,13 @@ Erişim kontrolü uygulamada değil, veritabanında (PostgreSQL Row Level Securi
 
 ## Ekran görüntüleri
 
-<!-- docs/screenshots/ klasörüne bu adlarla PNG ekleyin. -->
-| POS ve salon | Mutfak ekranı |
+| Garson: salon ve masalar | Mutfak ekranı |
 |---|---|
-| ![POS ve salon](docs/screenshots/pos.png) | ![Mutfak ekranı](docs/screenshots/mutfak.png) |
-| **Stok ve maliyet** | **Patron paneli (telefon)** |
-| ![Stok](docs/screenshots/stok.png) | ![Patron paneli](docs/screenshots/patron-mobil.png) |
+| ![Garson ekranı](docs/screenshots/garson-pos.png) | ![Mutfak ekranı](docs/screenshots/mutfak.png) |
+
+| Patron: raporlar | Patron: telefonda |
+|---|---|
+| ![Patron raporları](docs/screenshots/patron.png) | <img src="docs/screenshots/patron-mobil.png" alt="Telefonda patron paneli" width="260"> |
 
 ## Çalışma modları
 
