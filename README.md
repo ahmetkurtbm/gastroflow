@@ -4,6 +4,30 @@
 kasa, reçeteye dayalı stok düşümü, maliyet kontrolü, satın alma ve denetim kaydı.
 Erişim kontrolü uygulamada değil, veritabanında (PostgreSQL Row Level Security) zorunlu.
 
+## Hangi sorunu çözüyor
+
+**Sorun.** Küçük ve orta ölçekli restoranlar sipariş, mutfak, kasa ve stok için ayrı araçlar ya da kâğıt kullanır. Satış stoktan düşmez, reçete maliyeti ve zayiat bilinmez; birden fazla şubede kimin hangi veriyi gördüğü kontrol edilemez.
+
+**Çözüm.** Tek bir sistemde masadan siparişe, mutfak ekranından kasaya ve gün sonuna kadar akış. Her satış reçeteye göre stoktan düşer, teorik ve fiili tüketim karşılaştırılır. Patron canlı ciroyu ve bekleyen onayları telefondan görür.
+
+**Durum.** Çekirdek akışlar çalışıyor ve demo olarak yayında. Yazarkasa, e-Arşiv ve paket platformu entegrasyonları adaptör arayüzüyle hazır ama ticari anlaşma gerektirdiği için şimdilik mock (ayrıntı aşağıda).
+
+### Teknik kararlar
+
+- **Kiracı izolasyonu veritabanında.** Her tabloda `force row level security`; uygulamadaki bir hata başka restoranın verisini açamaz. pgTAP testleriyle doğrulanır.
+- **Sunucusuz demo.** Vercel'de veritabanı yerine süreç içinde PGlite çalışır; aynı migration'lar ve RLS politikalarıyla.
+- **Bağlantı kopsa da sipariş kaybolmaz.** Mutasyonlar IndexedDB'de kuyruğa alınır ve idempotency anahtarıyla senkronlanır.
+- **Denetim kaydını uygulama değil trigger yazar;** kayıtlar yalnızca eklenebilir.
+
+## Ekran görüntüleri
+
+<!-- docs/screenshots/ klasörüne bu adlarla PNG ekleyin. -->
+| POS ve salon | Mutfak ekranı |
+|---|---|
+| ![POS ve salon](docs/screenshots/pos.png) | ![Mutfak ekranı](docs/screenshots/mutfak.png) |
+| **Stok ve maliyet** | **Patron paneli (telefon)** |
+| ![Stok](docs/screenshots/stok.png) | ![Patron paneli](docs/screenshots/patron-mobil.png) |
+
 ## Çalışma modları
 
 | Mod | Ne zaman | Veritabanı |
