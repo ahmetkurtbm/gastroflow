@@ -47,3 +47,35 @@ jobs:
       # Migration'lar ve demo verisi gerçek Postgres'te kurulabiliyor mu; ikinci çalıştırma hiçbir şey yapmamalı.
       - run: npm run db:setup
       - run: npm run db:setup
+
+  rls:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: pgTAP kurulu Postgres'i başlat
+        run: |
+          docker run -d --name pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=gastroflow -p 5432:5432 postgres:17
+          until docker exec pg pg_isready -U postgres -d gastroflow; do sleep 1; done
+          docker exec pg sh -c "apt-get update -qq && apt-get install -y -qq postgresql-17-pgtap > /dev/null"
+      # Testler satır sayıyor; demo verisi olmadan, yalnızca şema kurulur.
+      - name: Şemayı kur
+        run: |
+          psql_run() { docker exec -i pg psql -q -U postgres -d gastroflow -v ON_ERROR_STOP=1; }
+          psql_run < db/compat.sql
+          for file in db/migrations/*.sql; do
+            sed 's/create extension if not exists pg_cron;//I' "$file" | psql_run
+          done
+      - name: Kiracı izolasyonu ve yetki testleri
+        run: |
+          failed=0
+          for file in db/tests/*_test.sql; do
+            echo "::group::$file"
+            output=$(docker exec -e PGOPTIONS="-c search_path=public,extensions" -i pg psql -U postgres -d gastroflow -tA -v ON_ERROR_STOP=1 < "$file" 2>&1) || failed=1
+            echo "$output"
+            echo "::endgroup::"
+            if echo "$output" | grep -qE '^not ok|^# Looks like'; then
+              echo "::error file=$file::pgTAP başarısız"
+              failed=1
+            fi
+          done
+          exit $failed

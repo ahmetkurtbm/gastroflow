@@ -151,7 +151,7 @@ npm run db:setup   # migration'ları uygular, boşsa demo verisini yükler
 
 Veritabanı güvenlik testleri `db/tests/` altında pgTAP ile yazılmıştır
 (kiracı izolasyonu, rol yetkileri, stok ve sipariş kuralları); pgTAP kurulu bir
-Postgres'te `psql -f` ile çalıştırılır.
+Postgres'te `psql -f` ile çalıştırılır; CI her push'ta 123 testi de çalıştırır.
 
 ## Teknoloji
 
