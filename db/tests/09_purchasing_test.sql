@@ -5,7 +5,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(14);
+select plan(15);
 
 insert into auth.users (id, instance_id, aud, role, email, raw_user_meta_data) values
   ('aaaaaaaa-0000-4000-8000-000000000001','00000000-0000-0000-0000-000000000000','authenticated','authenticated','o@t9.test','{"full_name":"T9 Patron"}'),
@@ -27,6 +27,8 @@ set local request.jwt.claims = '{"sub":"aaaaaaaa-0000-4000-8000-000000000002","t
 
 insert into public.suppliers (id, tenant_id, name, lead_time_days)
   values ('a3000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000000','Un Tedarik A.Ş.',2);
+select is((select count(*) from public.inventory_items)::int, 1, 'Depo hammaddeleri görür');
+
 select is((select count(*) from public.suppliers)::int, 1, 'Depo tedarikçi ekleyebilir');
 
 insert into public.supplier_items (id, tenant_id, supplier_id, inventory_item_id, price, min_order_quantity)
