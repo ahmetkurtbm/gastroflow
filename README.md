@@ -153,6 +153,15 @@ Veritabanı güvenlik testleri `db/tests/` altında pgTAP ile yazılmıştır
 (kiracı izolasyonu, rol yetkileri, stok ve sipariş kuralları); pgTAP kurulu bir
 Postgres'te `psql -f` ile çalıştırılır; CI her push'ta 123 testi de çalıştırır.
 
+## Güvenlik ve sınırlar
+
+- Giriş: IP başına 15 dakikada 30 deneme, e-posta başına 5 başarısız denemeden sonra kilit (demo hesapları kilitlenmez). Sayaç sunucu örneği başınadır.
+- Demo: menü görseli yüklemesinde ürünün kiracıya ait olduğu doğrulanır, demo depolaması 200 nesne / 100 MB ile sınırlıdır; tohum hesapların üyelikleri değiştirilemez.
+- Excel içe aktarma zip bombasına karşı korunur (açılmış boyut en fazla 50 MB). QR sipariş satır sınırı işlem içinde kilitle uygulanır. Adisyon kapatma tekrarlansa da puan ve stok bir kez işlenir; adisyon başına tek puan kazanımı ve tek harcama veritabanı indeksiyle zorlanır.
+- **Yük testi (demo modu):** giriş sayfası yaklaşık 240 istek/sn (200 eşzamanlı bağlantıda en yavaş %1'lik dilim 1,2 sn), geçersiz QR adresi yönlendirmesi yaklaşık 1600 istek/sn; hata çıkmaz.
+
+Ölçümler yerel bir dizüstü bilgisayarda, tek süreçli üretim derlemesiyle ve demo moduyla `autocannon` kullanılarak alındı; kabaca fikir verir, canlı ortam rakamı değildir.
+
 ## Teknoloji
 
 Next.js 16 · React 19 · TypeScript · Tailwind CSS v4 · PostgreSQL 17 (RLS, trigger'lar) · PGlite · supabase-js · Zod · ExcelJS · Vitest · Playwright · Docker
