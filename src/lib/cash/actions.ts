@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { compare, isZero, toLira } from "@/core/money";
 import { requireAppUser } from "@/lib/auth/current-user";
+import { didCloseOrder } from "@/lib/cash/close-guard";
 import { loadOrderForPayment } from "@/lib/cash/queries";
 import { depleteOrderStock } from "@/lib/inventory/depletion";
 import { fiscalDeviceAdapter } from "@/lib/integrations";
@@ -45,12 +46,15 @@ async function finalizeOrderClose(params: {
 }): Promise<void> {
   const { orderId, tenantId, userId, customerId, totalLira, orderNo, supabase } = params;
 
-  const { error: closeError } = await supabase
+  const closeResult = await supabase
     .from("orders")
     .update({ status: "closed", closed_at: new Date().toISOString() })
     .eq("id", orderId)
-    .eq("status", "open");
-  if (closeError) return; // Zaten kapalıysa (yarış) sessizce çık — idempotent.
+    .eq("status", "open")
+    .select("id");
+  // Hata varsa ya da 0 satır etkilendiyse (başka istek zaten kapattı) sessizce çık;
+  // stok, ÖKC ve puan işlemleri tekrarlanmaz — idempotent.
+  if (!didCloseOrder(closeResult)) return;
 
   // Yan etkiler best-effort: adisyon zaten kapandı, hatalar yalnızca loglanır.
   // Stok düşümünün idempotency kısıtı çift kapanışa karşı korur.

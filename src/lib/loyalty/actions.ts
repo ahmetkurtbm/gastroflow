@@ -6,6 +6,8 @@ import { z } from "zod";
 import { requireAppUser } from "@/lib/auth/current-user";
 import { createClient } from "@/lib/db/client";
 
+import { isUniqueViolation } from "./unique-violation";
+
 export type ActionState = { error?: string; ok?: boolean };
 
 function fail(error: unknown): ActionState {
@@ -102,7 +104,8 @@ const redeemSchema = z.object({
 /**
  * Müşterinin puanını harcayıp adisyona indirim olarak yazar. Bakiye kontrolü
  * ile düşüm arasında eşzamanlılık yarışı teorik olarak mümkündür; düşük hacimli
- * kasiyer işlemi için kabul edilmiş bir risktir.
+ * kasiyer işlemi için kabul edilmiş bir risktir. Aynı adisyonda ikinci harcama
+ * ise kısmi benzersiz indeksle (kind = 'redeem') engellenir.
  */
 export async function redeemPointsForOrder(
   _previous: ActionState,
@@ -157,6 +160,7 @@ export async function redeemPointsForOrder(
       points_delta: -input.points,
       created_by: user.userId,
     });
+    if (isUniqueViolation(error)) return { error: "Bu adisyonda zaten puan kullanılmış." };
     if (error) return { error: error.message };
   } catch (error) {
     return fail(error);
@@ -186,5 +190,7 @@ export async function earnPointsForOrder(params: {
     points_delta: points,
     created_by: params.userId,
   });
+  // Bu adisyon için puan zaten yazılmış (kısmi benzersiz indeks): idempotent.
+  if (isUniqueViolation(error)) return;
   if (error) throw new Error(error.message);
 }

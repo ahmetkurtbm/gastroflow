@@ -8,6 +8,9 @@ import { z } from "zod";
 import { APP_ROLES } from "@/lib/auth/access";
 import { requireAppUser } from "@/lib/auth/current-user";
 import { createClient, createServiceRoleClient } from "@/lib/db/client";
+import { isDemoMode } from "@/lib/db/mode";
+
+import { DEMO_SEED_ACCOUNT_MESSAGE, isProtectedDemoAccount } from "./demo-guard";
 
 export type AddStaffState = { error?: string; created?: { email: string; password: string } };
 
@@ -102,6 +105,24 @@ export async function addStaffMember(
 
 const staffIdSchema = z.object({ id: z.uuid() });
 
+/** Demo modunda tohum hesapların üyeliğine dokunulmasını engeller (hesaplar ortak kullanılır). */
+async function assertNotDemoSeedAccount(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  membershipId: string,
+): Promise<void> {
+  if (!isDemoMode()) return;
+
+  const { data: membership } = await supabase
+    .from("memberships")
+    .select("user_id")
+    .eq("id", membershipId)
+    .maybeSingle();
+  if (!membership) return;
+
+  const { data: account } = await createServiceRoleClient().auth.admin.getUserById(membership.user_id);
+  if (isProtectedDemoAccount(account.user?.email, true)) throw new Error(DEMO_SEED_ACCOUNT_MESSAGE);
+}
+
 /**
  * Personeli pasif eder; üyelik ve denetim geçmişi silinmez. JWT claim'leri
  * token yenilenene kadar (en geç 1 saat) geçerli kalır.
@@ -109,6 +130,7 @@ const staffIdSchema = z.object({ id: z.uuid() });
 export async function deactivateStaffMember(formData: FormData) {
   const { id } = staffIdSchema.parse({ id: formData.get("id") });
   const supabase = await createClient();
+  await assertNotDemoSeedAccount(supabase, id);
 
   const { error } = await supabase.from("memberships").update({ is_active: false }).eq("id", id);
   if (error) throw new Error(error.message);
@@ -139,6 +161,7 @@ export async function changeStaffRole(formData: FormData) {
     role: formData.get("role"),
   });
   const supabase = await createClient();
+  await assertNotDemoSeedAccount(supabase, input.id);
 
   const { error } = await supabase
     .from("memberships")

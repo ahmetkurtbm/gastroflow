@@ -575,11 +575,26 @@ export async function uploadMenuItemImage(
     }
     const supabase = await createClient();
 
+    // Ürün çağıranın kiracısına ait olmalı; yoksa depoya sahipsiz dosya yazılırdı.
+    const { data: menuItem } = await supabase
+      .from("menu_items")
+      .select("id")
+      .eq("id", menuItemId)
+      .eq("tenant_id", user.tenantId)
+      .maybeSingle();
+    if (!menuItem) return { error: "Ürün bulunamadı." };
+
     const path = `${user.tenantId}/${menuItemId}.${ext}`;
     const { error: uploadError } = await supabase.storage
       .from("menu-images")
       .upload(path, file, { upsert: true, contentType: file.type });
     if (uploadError) return { error: uploadError.message };
+
+    // Başka uzantıyla yüklenmiş eski görsel yetim kalmasın (best-effort).
+    const staleExtensions = Object.values(ALLOWED_IMAGE_TYPES).filter((other) => other !== ext);
+    await supabase.storage
+      .from("menu-images")
+      .remove(staleExtensions.map((other) => `${user.tenantId}/${menuItemId}.${other}`));
 
     const { data: publicUrlData } = supabase.storage.from("menu-images").getPublicUrl(path);
     // Yol aynı kaldığı için tarayıcı önbelleğini zaman damgasıyla kırıyoruz.
@@ -599,10 +614,17 @@ export async function uploadMenuItemImage(
   return { ok: true };
 }
 
-/** Menü ürününün görsel bağlantısını kaldırır; dosya silinmez. */
+/** Menü ürününün görsel bağlantısını kaldırır ve dosyayı da siler. */
 export async function removeMenuItemImage(formData: FormData) {
   const menuItemId = z.uuid().parse(formData.get("menuItemId"));
+  const user = await requireAppUser();
   const supabase = await createClient();
+
+  // Yol kuralı `${tenantId}/${menuItemId}.${ext}`; silme yetkisi storage RLS'tedir.
+  const { error: removeError } = await supabase.storage
+    .from("menu-images")
+    .remove(Object.values(ALLOWED_IMAGE_TYPES).map((ext) => `${user.tenantId}/${menuItemId}.${ext}`));
+  if (removeError) throw new Error(removeError.message);
 
   const { error } = await supabase
     .from("menu_items")

@@ -8,6 +8,9 @@ import { z } from "zod";
 import { allocateProportional, money, toLira } from "@/core/money";
 import { currentPrices } from "@/core/pricing";
 import { createServiceRoleClient } from "@/lib/db/client";
+import { asRole } from "@/lib/db/engine";
+
+import { insertLinesWithinLimit, type LineDraft } from "./insert-lines";
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -46,15 +49,6 @@ const placeOrderSchema = z.object({
     })
     .pipe(z.array(cartLineSchema).min(1, "Sepet boş.").max(50, "Sepette çok fazla satır var.")),
 });
-
-type LineDraft = {
-  menu_item_id: string;
-  quantity: number;
-  unit_price: number;
-  vat_rate?: number;
-  recipe_version_id: string | null;
-  note: string;
-};
 
 /**
  * QR menüden gelen sepeti adisyona yazar.
@@ -191,28 +185,19 @@ export async function placeQrOrder(
     const orderId = await findOrOpenOrder(supabase, table);
     if (!orderId) return { error: GENERIC_ERROR };
 
-    const { count: recentLines } = await supabase
-      .from("order_lines")
-      .select("id", { count: "exact", head: true })
-      .eq("order_id", orderId)
-      .is("created_by", null)
-      .gte("created_at", new Date(Date.now() - RATE_WINDOW_MS).toISOString());
-
-    if ((recentLines ?? 0) + drafts.length > MAX_LINES_PER_WINDOW) {
-      return { error: "Bu masadan kısa sürede çok fazla sipariş geldi. Lütfen garsona haber verin." };
-    }
-
-    const { error } = await supabase.from("order_lines").insert(
-      drafts.map((draft) => ({
-        ...draft,
-        tenant_id: table.tenant_id,
-        order_id: orderId,
-        client_key: randomUUID(),
-      })),
+    // Sayma ve ekleme tek transaction'da, adisyon kilidi altında: paralel istekler sınırı aşamaz.
+    const outcome = await asRole("service_role", { role: "service_role" }, (tx) =>
+      insertLinesWithinLimit(tx, {
+        tenantId: table.tenant_id,
+        orderId,
+        drafts,
+        windowMs: RATE_WINDOW_MS,
+        maxLines: MAX_LINES_PER_WINDOW,
+        newClientKey: randomUUID,
+      }),
     );
-    if (error) {
-      console.error("QR sipariş satırları yazılamadı:", error);
-      return { error: GENERIC_ERROR };
+    if (outcome === "limit") {
+      return { error: "Bu masadan kısa sürede çok fazla sipariş geldi. Lütfen garsona haber verin." };
     }
   } catch (error) {
     if (error instanceof z.ZodError) {

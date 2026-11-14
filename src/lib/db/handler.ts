@@ -70,6 +70,15 @@ export async function handleDbRequest(request: Request): Promise<Response> {
     return new Response(result.body, { status: result.status, headers: result.headers });
   }
 
+  if (method === "DELETE" && path.startsWith("/storage/v1/object/")) {
+    if (!caller) return invalidJwt();
+    const { handleRemove } = await import("./storage");
+    const bucket = path.slice("/storage/v1/object/".length);
+    const body = (await readBody(request)) as { prefixes?: unknown } | null | undefined;
+    const result = await handleRemove(bucket, body?.prefixes, caller.role, caller.claims);
+    return new Response(result.body, { status: result.status, headers: result.headers });
+  }
+
   const rest = /^\/rest\/v1\/([a-z_][a-z0-9_]*)$/.exec(path);
   if (rest) {
     if (!caller) return invalidJwt();

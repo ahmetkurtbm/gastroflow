@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requirePathAccess } from "@/lib/auth/current-user";
+import { parseDateRange } from "@/lib/excel/date-range";
 import { buildWorkbookBuffer } from "@/lib/excel/workbook";
 import { createClient } from "@/lib/db/client";
 
@@ -30,8 +31,15 @@ export async function GET(request: Request) {
     return new NextResponse(null, { status: 403 });
   }
   const url = new URL(request.url);
-  const fromDate = url.searchParams.get("from") ?? isoDaysAgo(30);
-  const toDate = url.searchParams.get("to") ?? isoDaysAgo(0);
+  // Değerler dosya adına yazıldığı için yalnızca YYYY-MM-DD kabul edilir.
+  const range = parseDateRange(url.searchParams.get("from"), url.searchParams.get("to"), {
+    from: isoDaysAgo(30),
+    to: isoDaysAgo(0),
+  });
+  if (!range) {
+    return new NextResponse("Tarih YYYY-MM-DD biçiminde olmalı.", { status: 400 });
+  }
+  const { from: fromDate, to: toDate } = range;
 
   const supabase = await createClient();
   const { data: payments } = await supabase

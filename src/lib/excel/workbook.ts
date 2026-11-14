@@ -1,5 +1,7 @@
 import ExcelJS from "exceljs";
 
+import { assertSafeZip } from "./zip-guard";
+
 // Kullanıcı yüklediği dosyalar ayrıştırıldığı için `xlsx` (SheetJS) yerine
 // bakımı süren `exceljs` kullanılıyor; npm'deki SheetJS sürümünde düzeltilmemiş
 // prototype pollution ve ReDoS açıkları var.
@@ -50,6 +52,8 @@ export async function parseWorkbookRows(file: File): Promise<ParsedRow[]> {
 
   const workbook = new ExcelJS.Workbook();
   const arrayBuffer = await file.arrayBuffer();
+  // Sıkıştırılmış boyut küçük olsa da açılmış boyut büyük olabilir (zip bombası); açmadan önce denetlenir.
+  assertSafeZip(new Uint8Array(arrayBuffer));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- yukarıdaki Buffer tip uyuşmazlığı
   await workbook.xlsx.load(Buffer.from(arrayBuffer) as any);
 

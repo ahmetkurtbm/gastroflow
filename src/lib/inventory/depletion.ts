@@ -56,7 +56,7 @@ export async function depleteOrderStock(orderId: string): Promise<void> {
 
   if (!location) return; // Şube için henüz lokasyon tanımlanmamış — sessizce atla.
 
-  const { catalog } = await loadCatalog({ client: supabase });
+  const { catalog } = await loadCatalog({ client: supabase, tenantId: order.tenant_id });
   const recipesById = new Map(catalog.recipes.map((r) => [r.id, r]));
   const ingredientsById = new Map(catalog.ingredients.map((i) => [i.id, i]));
 

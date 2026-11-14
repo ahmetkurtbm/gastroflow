@@ -2,7 +2,11 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
+import { DEMO_ACCOUNTS } from "@/lib/auth/demo-accounts";
+
 import { ANON_KEY, signJwt, verifyJwt, type JwtPayload } from "./jwt";
+import { LoginLimiter, clientIp } from "./login-limiter";
+import { isDemoMode } from "./mode";
 
 /**
  * supabase-js'in kullandığı Auth uçlarının karşılığı: şifreyle giriş, token
@@ -13,8 +17,6 @@ import { ANON_KEY, signJwt, verifyJwt, type JwtPayload } from "./jwt";
 
 const ACCESS_TOKEN_TTL = 60 * 60;
 const REFRESH_TOKEN_TTL = 7 * 24 * 60 * 60;
-const MAX_FAILED_LOGINS = 5;
-const LOCKOUT_MS = 15 * 60 * 1000;
 
 type UserRow = {
   id: string;
@@ -72,18 +74,12 @@ export function resolveRequestRole(headers: Headers):
   return null;
 }
 
-const failedLogins = new Map<string, { count: number; until: number }>();
+// Sayaçlar süreç belleğinde, yani sunucu örneği başınadır (bkz. login-limiter.ts).
+const loginLimiter = new LoginLimiter();
 
-function isLockedOut(email: string): boolean {
-  const entry = failedLogins.get(email);
-  return entry !== undefined && entry.count >= MAX_FAILED_LOGINS && entry.until > Date.now();
-}
-
-function recordFailure(email: string) {
-  const entry = failedLogins.get(email);
-  const active = entry && entry.until > Date.now() ? entry : { count: 0, until: 0 };
-  failedLogins.set(email, { count: active.count + 1, until: Date.now() + LOCKOUT_MS });
-}
+// Demo e-postaları arayüzde açıkta; biri yanlış şifreyle "Demo olarak gir"i
+// kilitleyemesin diye demo modunda bu hesaplar e-posta kilidinden muaftır.
+const DEMO_EMAILS = new Set(DEMO_ACCOUNTS.map((account) => account.email));
 
 async function issueSession(user: UserRow): Promise<AuthResponse> {
   const { asSystem } = await import("./engine");
@@ -139,22 +135,22 @@ async function findUser(where: string, params: unknown[]): Promise<UserRow | nul
   });
 }
 
-async function passwordGrant(body: { email?: unknown; password?: unknown }): Promise<AuthResponse> {
+async function passwordGrant(body: { email?: unknown; password?: unknown }, headers: Headers): Promise<AuthResponse> {
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const password = typeof body.password === "string" ? body.password : "";
   if (!email || !password) return authError(400, "validation_failed", "E-posta ve şifre gerekli");
-  if (isLockedOut(email)) return authError(429, "over_request_rate_limit", "Çok fazla hatalı deneme");
+
+  // Hak, doğrulamadan önce eşzamanlı tüketilir; paralel istekler sınırı aşamaz.
+  const attempt = loginLimiter.begin(email, clientIp(headers), isDemoMode() && DEMO_EMAILS.has(email));
+  if (!attempt) return authError(429, "over_request_rate_limit", "Çok fazla hatalı deneme");
 
   const user = await findUser("lower(email) = $1 and encrypted_password = extensions.crypt($2, encrypted_password)", [
     email,
     password,
   ]);
-  if (!user) {
-    recordFailure(email);
-    return authError(400, "invalid_credentials", "Invalid login credentials");
-  }
+  if (!user) return authError(400, "invalid_credentials", "Invalid login credentials");
 
-  failedLogins.delete(email);
+  attempt.succeed();
   return issueSession(user);
 }
 
@@ -222,7 +218,7 @@ export async function handleAuth(method: string, route: string, search: URLSearc
 
   if (method === "POST" && route === "token") {
     const grant = search.get("grant_type");
-    if (grant === "password") return passwordGrant(payload);
+    if (grant === "password") return passwordGrant(payload, headers);
     if (grant === "refresh_token") return refreshGrant(payload);
     return authError(400, "unsupported_grant_type", "Desteklenmeyen grant_type");
   }

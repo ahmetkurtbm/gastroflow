@@ -1,6 +1,8 @@
 import "server-only";
 
 import { asRole, asSystem, type RequestRole, type Row } from "./engine";
+import { isDemoMode } from "./mode";
+import { demoQuotaError } from "./storage-quota";
 
 /**
  * Supabase Storage'ın kullanılan iki işi: bir bucket'a dosya yüklemek ve
@@ -63,7 +65,24 @@ export async function handleUpload(
 
   const upsert = request.headers.get("x-upsert") === "true";
   try {
-    const id = await asRole(role, claims, async (tx) => {
+    const result = await asRole(role, claims, async (tx) => {
+      // Demo modunda toplam depolama sınırlıdır; sayım ve ekleme aynı transaction'da.
+      if (isDemoMode()) {
+        const { rows: usageRows } = await tx.query<{ count: number; bytes: string }>(
+          "select count(*)::int as count, coalesce(sum(octet_length(content)), 0)::text as bytes from storage.objects",
+        );
+        const { rows: existing } = await tx.query<{ size: number }>(
+          "select octet_length(content)::int as size from storage.objects where bucket_id = $1 and name = $2",
+          [bucket, name],
+        );
+        const quotaMessage = demoQuotaError(
+          { count: usageRows[0].count, bytes: Number(usageRows[0].bytes) },
+          upload.bytes.byteLength,
+          upsert && existing[0] ? existing[0].size : null,
+        );
+        if (quotaMessage) return { ok: false as const, quotaMessage };
+      }
+
       const { rows } = await tx.query<{ id: string }>(
         `insert into storage.objects (bucket_id, name, owner, metadata, content)
          values ($1, $2, nullif($3, '')::uuid, jsonb_build_object('mimetype', $4::text, 'size', $5::int), decode($6, 'base64'))
@@ -78,15 +97,47 @@ export async function handleUpload(
           Buffer.from(upload.bytes).toString("base64"),
         ],
       );
-      return rows[0].id;
+      return { ok: true as const, id: rows[0].id };
     });
-    return json(200, { Key: `${bucket}/${name}`, Id: id });
+    if (!result.ok) return storageError(413, "Payload too large", result.quotaMessage);
+    return json(200, { Key: `${bucket}/${name}`, Id: result.id });
   } catch (error) {
     const code = (error as { code?: string }).code;
     if (code === "42501") return storageError(403, "Unauthorized", "new row violates row-level security policy");
     if (code === "23505") return storageError(409, "Duplicate", "The resource already exists");
     console.error("Dosya yüklenemedi:", error);
     return storageError(500, "InternalError", "Dosya yüklenemedi");
+  }
+}
+
+/** Dosyaları siler (supabase-js `remove`); hangi dosyaların silinebileceğini RLS belirler. */
+export async function handleRemove(
+  bucket: string,
+  names: unknown,
+  role: RequestRole,
+  claims: Row,
+): Promise<StorageResponse> {
+  if (
+    !Array.isArray(names) ||
+    names.length === 0 ||
+    names.length > 100 ||
+    !names.every((name) => typeof name === "string" && OBJECT_NAME.test(name) && !name.includes(".."))
+  ) {
+    return storageError(400, "InvalidKey", "Geçersiz dosya adı");
+  }
+
+  try {
+    const removed = await asRole(role, claims, async (tx) => {
+      const { rows } = await tx.query<{ name: string }>(
+        "delete from storage.objects where bucket_id = $1 and name = any($2::text[]) returning name",
+        [bucket, names],
+      );
+      return rows;
+    });
+    return json(200, removed);
+  } catch (error) {
+    console.error("Dosya silinemedi:", error);
+    return storageError(500, "InternalError", "Dosya silinemedi");
   }
 }
 

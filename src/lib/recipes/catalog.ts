@@ -53,30 +53,43 @@ export async function loadCatalog(
      * içindir (bkz. inventory/depletion.ts).
      */
     client?: SupabaseClient<Database>;
+    /** Verilirse tüm okumalar bu kiracıyla sınırlanır (service role ile çağrılırken şart). */
+    tenantId?: string;
   } = {},
 ): Promise<CatalogSnapshot> {
   const supabase = options.client ?? (await createClient());
+  const { tenantId } = options;
+  const scoped = <Q extends { eq(column: "tenant_id", value: string): Q }>(query: Q): Q =>
+    tenantId ? query.eq("tenant_id", tenantId) : query;
 
   const [itemsResult, conversionsResult, recipesResult, versionsResult, pricesResult, menuItemsResult] =
     await Promise.all([
-      supabase
-        .from("inventory_items")
-        .select("id, name, base_unit, cost_per_base_unit")
-        .eq("is_active", true),
-      supabase
-        .from("item_unit_conversions")
-        .select("inventory_item_id, from_unit, to_unit, factor"),
-      supabase.from("recipes").select("id, name, menu_item_id").eq("is_active", true),
-      supabase
-        .from("recipe_versions")
-        .select(
-          "id, recipe_id, version_no, status, yield_quantity, yield_unit, recipe_lines(line_no, component_type, inventory_item_id, sub_recipe_id, quantity, unit, waste_percent)",
-        )
-        .in("status", options.preferDraftFor ? ["active", "draft"] : ["active"]),
-      supabase
-        .from("menu_prices")
-        .select("menu_item_id, price, branch_id, valid_from"),
-      supabase.from("menu_items").select("id, image_url"),
+      scoped(
+        supabase
+          .from("inventory_items")
+          .select("id, name, base_unit, cost_per_base_unit")
+          .eq("is_active", true),
+      ),
+      scoped(
+        supabase
+          .from("item_unit_conversions")
+          .select("inventory_item_id, from_unit, to_unit, factor"),
+      ),
+      scoped(supabase.from("recipes").select("id, name, menu_item_id").eq("is_active", true)),
+      scoped(
+        supabase
+          .from("recipe_versions")
+          .select(
+            "id, recipe_id, version_no, status, yield_quantity, yield_unit, recipe_lines(line_no, component_type, inventory_item_id, sub_recipe_id, quantity, unit, waste_percent)",
+          )
+          .in("status", options.preferDraftFor ? ["active", "draft"] : ["active"]),
+      ),
+      scoped(
+        supabase
+          .from("menu_prices")
+          .select("menu_item_id, price, branch_id, valid_from"),
+      ),
+      scoped(supabase.from("menu_items").select("id, image_url")),
     ]);
 
   const conversionsByItem = new Map<string, UnitConversion[]>();
